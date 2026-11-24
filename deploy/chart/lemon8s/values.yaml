@@ -26,7 +26,7 @@ apiKey:
   existingSecret: ""
 
 # CPU and memory requests or limits for the pod; devices are added to its limits. A memory
-# limit must leave room for models that load into system memory, as on the CPU backend.
+# limit must leave room for models that load into system memory, as on the CPU backend or the NPU.
 resources: {}
 
 # Where the pod may run, on a cluster with more than one node. On K3s's default local-path

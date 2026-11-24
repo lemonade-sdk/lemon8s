@@ -1,5 +1,11 @@
 {{- $secret := .Values.apiKey.existingSecret | default (printf "%s-api-key" .Release.Name) }}
-{{- $limits := mergeOverwrite (deepCopy ((.Values.resources).limits | default dict)) (.Values.devices | default dict) }}
+{{- $devices := dict }}
+{{- range $name, $count := .Values.devices }}
+{{- if not (kindIs "invalid" $count) }}
+{{- $_ := set $devices $name $count }}
+{{- end }}
+{{- end }}
+{{- $limits := mergeOverwrite (deepCopy ((.Values.resources).limits | default dict)) $devices }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,7 +34,7 @@ spec:
         runAsGroup: 10001
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
-        {{- if .Values.devices }}
+        {{- if $devices }}
         {{- with required "Set deviceGroups to the host groups that may open the devices, such as --set \"deviceGroups={$(getent group render | cut -d: -f3)}\", or to {} if they need none" .Values.deviceGroups }}
         supplementalGroups:
           {{- toYaml . | nindent 10 }}

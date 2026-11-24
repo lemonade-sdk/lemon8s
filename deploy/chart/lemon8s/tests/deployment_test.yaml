@@ -32,6 +32,29 @@ tests:
             amd.com/gpu: 1
             example.com/npu: 1
 
+  - it: requests only the device that replaces the GPU when the GPU's entry is null
+    template: deployment.yaml
+    set:
+      devices:
+        amd.com/gpu: null
+        example.com/npu: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits
+          value:
+            example.com/npu: 1
+
+  - it: skips a device whose entry is null, as an upgrade that leaves the NPU stores it
+    template: deployment.yaml
+    set:
+      devices:
+        example.com/npu: null
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits
+          value:
+            amd.com/gpu: 1
+
   - it: refuses devices until deviceGroups is set
     template: deployment.yaml
     set:

@@ -51,6 +51,50 @@ class Lemonade:
         except urllib.error.HTTPError as error:
             return error.code, json.loads(error.read() or b"{}")
 
+    def load(self, name: str) -> dict:
+        """Pulls and loads a model, as an app's first request would.
+
+        Args:
+            name: A model in Lemonade's registry.
+
+        Returns:
+            The model's entry in `health`, which says where it runs.
+        """
+        status, body = self.call("pull", {"model_name": name}, timeout=1800)
+        assert status == 200 and body.get("status") == "success", body
+        status, body = self.call("load", {"model_name": name}, timeout=1800)
+        assert status == 200, body
+        status, health = self.call("health")
+        assert status == 200, health
+        entries = [m for m in health["all_models_loaded"] if m["model_name"] == name]
+        assert entries, f"health doesn't list {name} as loaded: {health}"
+        return entries[0]
+
+    def ask(self, model: str, question: str, *, timeout: float = 60) -> str:
+        """Asks a model one question, without sampling or thinking.
+
+        Args:
+            model: A loaded model.
+            question: The user's message.
+            timeout: Seconds to wait for the answer.
+
+        Returns:
+            The model's answer.
+        """
+        status, chat = self.call(
+            "chat/completions",
+            {
+                "model": model,
+                "messages": [{"role": "user", "content": question}],
+                "temperature": 0,
+                "max_tokens": 32,
+                "enable_thinking": False,
+            },
+            timeout=timeout,
+        )
+        assert status == 200, chat
+        return chat["choices"][0]["message"]["content"]
+
     def gpu_gb_used(self) -> float | None:
         """Sums the memory in use on every GPU Lemonade sees.
 
@@ -82,6 +126,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--model", default="Qwen3-0.6B-GGUF", help="a model in Lemonade's registry"
     )
+    parser.addoption(
+        "--npu-model",
+        help="an NPU model in Lemonade's registry, such as qwen3-0.6b-FLM, to test the NPU",
+    )
 
 
 @pytest.fixture(scope="session")
@@ -109,16 +157,9 @@ def loaded_model(pytestconfig: pytest.Config, lemonade: Lemonade) -> LoadedModel
     status, body = lemonade.call("unload", {})
     assert status == 200, body
     before = lemonade.gpu_gb_used()
-    status, body = lemonade.call("pull", {"model_name": name}, timeout=1800)
-    assert status == 200 and body.get("status") == "success", body
-    status, body = lemonade.call("load", {"model_name": name}, timeout=1800)
-    assert status == 200, body
+    entry = lemonade.load(name)
     after = lemonade.gpu_gb_used()
-    status, health = lemonade.call("health")
-    assert status == 200, health
-    entries = [m for m in health["all_models_loaded"] if m["model_name"] == name]
-    assert entries, f"health doesn't list {name} as loaded: {health}"
     return LoadedModel(
-        entry=entries[0],
+        entry=entry,
         gpu_gb_gained=None if before is None else after - before,
     )

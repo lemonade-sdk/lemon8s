@@ -30,20 +30,8 @@ def test_a_model_on_the_gpu_takes_gpu_memory(loaded_model):
 
 
 def test_the_model_answers_a_simple_question(lemonade, loaded_model):
-    status, chat = lemonade.call(
-        "chat/completions",
-        {
-            "model": loaded_model.entry["model_name"],
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "What is 7 times 6? Answer with the number only.",
-                }
-            ],
-            "temperature": 0,
-            "max_tokens": 32,
-            "enable_thinking": False,
-        },
+    answer = lemonade.ask(
+        loaded_model.entry["model_name"],
+        "What is 7 times 6? Answer with the number only.",
     )
-    assert status == 200, chat
-    assert "42" in chat["choices"][0]["message"]["content"], chat
+    assert "42" in answer, answer

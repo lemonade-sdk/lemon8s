@@ -1,0 +1,3 @@
+[default.extend-words]
+# devic.es is the generic device plugin's resource domain, as in devic.es/npu.
+devic = "devic"

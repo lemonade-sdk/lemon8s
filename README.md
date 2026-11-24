@@ -12,9 +12,9 @@ Goal: one private AI endpoint for your team, with the easy deployment of Lemonad
 > [!WARNING]
 > lemon8s is an experimental prototype. Expect breaking changes, and don't rely on lemon8s.
 
-Today lemon8s runs [Lemonade](https://github.com/lemonade-sdk/lemonade)'s server on Kubernetes, on one host. People and their AI agents connect with any OpenAI-compatible app and an API key. It's tested with [K3s](https://k3s.io), a lightweight Kubernetes, on a Strix Halo (Ryzen AI Max+ 395), with Lemonade's Vulkan, ROCm, and CPU backends.
+Today lemon8s runs [Lemonade](https://github.com/lemonade-sdk/lemonade)'s server on Kubernetes, on one host. People and their AI agents connect with any OpenAI-compatible app and an API key. It's tested with [K3s](https://k3s.io), a lightweight Kubernetes, on a Strix Halo (Ryzen AI Max+ 395), with Lemonade's Vulkan, ROCm, and CPU backends, and with its NPU through FastFlowLM.
 
-Planned: each conversation tagged with the kinds of data it may hold, so that only people cleared for those tags can open it; more hosts behind the same URL; and NPUs as well as GPUs.
+Planned: each conversation tagged with the kinds of data it may hold, so that only people cleared for those tags can open it; and more hosts behind the same URL.
 
 ## Try it
 
@@ -57,7 +57,7 @@ The chart should run on any Kubernetes with a default storage class and, to use 
 
    The OpenAI SDKs read these variables, and other apps take the same URL, key, and model name in their settings.
 
-The [Run Lemonade on Kubernetes](docs/playbooks/lemonade-on-kubernetes.md) playbook compares this with Lemonade on its own and covers changing settings, reaching it from another computer, issuing new keys, uninstalling, troubleshooting, and common questions.
+The [Run Lemonade on Kubernetes](docs/playbooks/lemonade-on-kubernetes.md) playbook compares this with Lemonade on its own and covers changing settings, using the NPU, reaching it from another computer, issuing new keys, uninstalling, troubleshooting, and common questions.
 
 ## Contributing
 
