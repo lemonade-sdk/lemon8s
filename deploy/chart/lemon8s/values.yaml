@@ -14,8 +14,8 @@ devices:
 deviceGroups: null
 
 # Models and llama.cpp builds, kept across restarts and upgrades. Set at install: an
-# upgrade can't change them. K3s's default storage doesn't enforce the size, so models
-# fill the host's disk under /var/lib/rancher/k3s/storage.
+# upgrade can't change them. K3s's default local-path storage doesn't enforce the size,
+# so models share the host's disk, under /var/lib/rancher/k3s/storage by default.
 storage:
   size: 100Gi
   className: ""
