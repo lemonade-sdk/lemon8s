@@ -134,10 +134,9 @@ jobs:
           sudo journalctl -u k3s --no-pager | tail -n 200
 
   e2e-windows:
-    name: End-to-end on Windows, through Rancher Desktop (not required)
-    if: github.event_name != 'pull_request'
+    name: End-to-end on Windows, through Rancher Desktop
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -159,18 +158,18 @@ jobs:
           'C:\Program Files\Rancher Desktop\resources\resources\win32\bin' | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
       - name: Start Kubernetes in Rancher Desktop
-        timeout-minutes: 25
+        timeout-minutes: 10
         env:
           RD_LOGS_DIR: ${{ runner.temp }}/rd-logs
         run: |
           rdctl start --no-modal-dialogs --application.updater.enabled=false --application.telemetry.enabled=false \
-            --kubernetes.enabled --kubernetes.version=1.37.1 --kubernetes.options.traefik=false \
-            --container-engine.name=containerd --wait --wait-timeout 20m
-          timeout 600 bash -c 'until kubectl get nodes | grep -q " Ready"; do sleep 5; done' || { kubectl get nodes -o wide; exit 1; }
+            --kubernetes.enabled --kubernetes.version=1.37.1 \
+            --container-engine.name=containerd --wait --wait-timeout 8m
+          timeout 120 bash -c 'until kubectl get nodes | grep -q " Ready"; do sleep 5; done' || { kubectl get nodes -o wide; exit 1; }
 
       - name: Install lemon8s and run the end-to-end tests
         uses: ./.github/actions/e2e-cpu
-        timeout-minutes: 25
+        timeout-minutes: 10
 
       - name: Cluster state
         if: ${{ !success() }}
@@ -184,7 +183,7 @@ jobs:
   checks:
     name: Checks
     if: always()
-    needs: [lint, comment-slop, e2e-cpu]
+    needs: [lint, comment-slop, e2e-cpu, e2e-windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
