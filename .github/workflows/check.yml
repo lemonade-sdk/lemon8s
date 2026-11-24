@@ -173,13 +173,13 @@ jobs:
           tail -n 200 "$RUNNER_TEMP"/rd-logs/{k3s,background,wsl}.log || true
 
   e2e-flavors:
-    name: End-to-end on ${{ matrix.flavor }} (not required)
+    name: End-to-end on ${{ matrix.flavor }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        flavor: ${{ fromJSON(github.event_name == 'pull_request' && '["kind"]' || '["kind", "k0s", "minikube", "rke2"]') }}
+        flavor: [kind, k0s, minikube, rke2]
     env:
       FLAVOR: ${{ matrix.flavor }}
     steps:
@@ -202,7 +202,7 @@ jobs:
   checks:
     name: Checks
     if: always()
-    needs: [lint, comment-slop, e2e-cpu]
+    needs: [lint, comment-slop, e2e-cpu, e2e-flavors]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
