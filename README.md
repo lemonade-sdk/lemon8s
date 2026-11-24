@@ -55,9 +55,9 @@ Only its host can reach lemon8s, and an API key guards it. The chart should run 
      -d '{"model": "Qwen3-4B-Instruct-2507-GGUF", "messages": [{"role": "user", "content": "Hello"}]}'
    ```
 
-   The OpenAI SDKs read these variables, and other apps take the same URL, key, and model name in their settings. From another computer, forward the port with `ssh -N -L 13305:localhost:13305 <you>@<host>` and use the same settings there.
+   The OpenAI SDKs read these variables, and other apps take the same URL, key, and model name in their settings.
 
-To change a setting from [values.yaml](deploy/chart/lemon8s/values.yaml), such as the backend, run `helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reuse-values --set backend=rocm`, then start the port-forward again. To issue new keys, run `kubectl -n lemonade delete secret lemonade-api-key`, the same upgrade, and `kubectl -n lemonade rollout restart deploy/lemonade`. `helm -n lemonade uninstall lemonade` removes lemon8s and its keys but keeps the models' volume, and `kubectl -n lemonade delete pvc lemonade-models` removes that.
+The [Run Lemonade on Kubernetes](docs/playbooks/lemonade-on-kubernetes.md) playbook compares this with Lemonade on its own and covers changing settings, reaching it from another computer, issuing new keys, uninstalling, troubleshooting, and common questions.
 
 ## Contributing
 
