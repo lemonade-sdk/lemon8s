@@ -1,0 +1,90 @@
+suite: the Lemonade pod
+templates:
+  - deployment.yaml
+  - configmap.yaml
+release:
+  name: lemonade
+  namespace: lemonade
+set:
+  deviceGroups: [992]
+tests:
+  - it: requests the GPU and adds the groups that may open it
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits
+          value:
+            amd.com/gpu: 1
+      - equal:
+          path: spec.template.spec.securityContext.supplementalGroups
+          value: [992]
+
+  - it: requests every device it is given, such as a GPU and an NPU
+    template: deployment.yaml
+    set:
+      devices:
+        amd.com/gpu: 1
+        example.com/npu: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits
+          value:
+            amd.com/gpu: 1
+            example.com/npu: 1
+
+  - it: refuses devices until deviceGroups is set
+    template: deployment.yaml
+    set:
+      deviceGroups: null
+    asserts:
+      - failedTemplate:
+          errorPattern: Set deviceGroups to the host groups that may open the devices
+
+  - it: adds no groups for devices that need none
+    template: deployment.yaml
+    set:
+      deviceGroups: []
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext.supplementalGroups
+
+  - it: runs on the CPU with no devices and no extra groups
+    template: deployment.yaml
+    set:
+      devices: null
+      deviceGroups: null
+      backend: cpu
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+      - notExists:
+          path: spec.template.spec.securityContext.supplementalGroups
+
+  - it: runs unprivileged, with a read-only root filesystem and no service account token
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: passes the backend to Lemonade as a default
+    template: configmap.yaml
+    set:
+      backend: rocm
+    asserts:
+      - matchRegex:
+          path: data["defaults.json"]
+          pattern: '"backend": "rocm"'

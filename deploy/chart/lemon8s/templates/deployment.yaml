@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "lemon8s.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "lemon8s.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "lemon8s.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/defaults: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        {{- if .Values.devices }}
+        {{- with required "Set deviceGroups to the host groups that may open the devices, such as --set \"deviceGroups={$(getent group render | cut -d: -f3)}\", or to {} if they need none" .Values.deviceGroups }}
+        supplementalGroups:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- end }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: lemonade
+          image: {{ .Values.image }}
+          env:
+            - name: HOME
+              value: /var/lib/lemonade
+            - name: LEMONADE_DEFAULTS_PATH
+              value: /etc/lemonade/defaults.json
+            - name: LEMONADE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-api-key
+                  key: api-key
+            - name: LEMONADE_ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-api-key
+                  key: admin-api-key
+          ports:
+            - name: http
+              containerPort: 13305
+          readinessProbe:
+            httpGet:
+              path: /live
+              port: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          {{- with .Values.devices }}
+          resources:
+            limits:
+              {{- toYaml . | nindent 14 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/lemonade
+            - name: defaults
+              mountPath: /etc/lemonade
+              readOnly: true
+            - name: run
+              mountPath: /run/lemonade
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-models
+        - name: defaults
+          configMap:
+            name: {{ .Release.Name }}-defaults
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

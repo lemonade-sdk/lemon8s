@@ -1,0 +1,16 @@
+suite: the models' volume
+templates:
+  - pvc.yaml
+tests:
+  - it: uses the default storage class unless one is named
+    asserts:
+      - notExists:
+          path: spec.storageClassName
+
+  - it: uses the storage class it is given
+    set:
+      storage.className: fast-ssd
+    asserts:
+      - equal:
+          path: spec.storageClassName
+          value: fast-ssd
