@@ -20,15 +20,26 @@ runs:
         helm install lemonade deploy/chart/lemon8s --namespace lemonade --set devices=null --set backend=cpu
         kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
 
-    - name: No other pod reaches Lemonade
+    - name: No other pod reaches Lemonade, until its NetworkPolicy is removed
       shell: bash
       run: |
         ip=$(kubectl -n lemonade get pod -l app.kubernetes.io/component=lemonade -o jsonpath='{.items[0].status.podIP}')
-        result=$(kubectl -n default run reach-lemonade --rm -i --restart=Never --quiet \
-          --image=docker.io/library/busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec \
-          -- sh -c "wget -q -T 5 -O /dev/null http://$ip:13305/live && echo reached || echo blocked")
+        reach() {
+          kubectl -n default run "reach-lemonade-$1" --rm -i --restart=Never --quiet \
+            --image=docker.io/library/busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec \
+            -- sh -c "wget -q -T 5 -O /dev/null http://$ip:13305/live && echo reached || echo blocked"
+        }
+        result=$(reach 0)
         echo "A pod in another namespace: $result"
-        grep -q '^blocked$' <<< "$result"
+        grep -qx blocked <<< "$result"
+        kubectl -n lemonade delete networkpolicy lemonade
+        for attempt in 1 2 3 4 5; do
+          result=$(reach "$attempt")
+          grep -qx reached <<< "$result" && break
+          sleep 3
+        done
+        echo "The same pod, without the NetworkPolicy: $result"
+        grep -qx reached <<< "$result"
 
     - name: End-to-end tests
       shell: bash
