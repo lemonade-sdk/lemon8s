@@ -15,7 +15,8 @@
     "devices": {
       "type": ["object", "null"],
       "additionalProperties": {
-        "type": "integer"
+        "type": ["integer", "null"],
+        "minimum": 0
       }
     },
     "deviceGroups": {

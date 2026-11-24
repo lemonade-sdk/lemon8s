@@ -33,9 +33,9 @@ python3 -m venv .venv
 .venv/bin/pytest tests --backend vulkan
 ```
 
-Install or upgrade with the backend you mean to test, such as `--set backend=vulkan`, and pass the same name to `--backend`. CI runs the end-to-end tests only on the CPU, so a pull request that changes the chart should also state which GPU backends and hardware they passed on. If you have no GPU to test on, say so, and a maintainer will run them.
+Install or upgrade with the backend you mean to test, such as `--set backend=vulkan`, and pass the same name to `--backend`. CI runs the end-to-end tests only on the CPU, so a pull request that changes the chart should also state which GPU backends and hardware they passed on. If you have no GPU to test on, say so, and a maintainer will run them. On a host whose NPU is set up as [Use the NPU](../docs/playbooks/lemonade-on-kubernetes.md#use-the-npu) describes, test the NPU too, on an install with `--set backend=cpu`, with `.venv/bin/pytest tests --backend cpu --npu-model qwen3-0.6b-FLM`.
 
-Dependabot updates the actions, the test requirements, and Lemonade's image. Other pinned versions, such as those at the top of [check.yml](workflows/check.yml), the images and installers in its jobs, Python in the [end-to-end action](actions/e2e-cpu/action.yml), and the README's K3s and device plugin, are updated by hand, along with the checksum or digest beside each.
+Dependabot updates the actions, the test requirements, and Lemonade's image. Other pinned versions, such as those at the top of [check.yml](workflows/check.yml), the images and installers in its jobs, Python in the [end-to-end action](actions/e2e-cpu/action.yml), the [NPU device plugin](../deploy/npu-device-plugin.yaml), and the README's K3s and device plugin, are updated by hand, along with the checksum or digest beside each.
 
 ## AI tools
 

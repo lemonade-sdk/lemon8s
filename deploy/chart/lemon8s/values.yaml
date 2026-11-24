@@ -9,7 +9,7 @@ backend: auto
 settings: {}
 
 # Devices from the host's device plugins, such as a GPU or an NPU, by resource name.
-# Set devices=null to run on the CPU only.
+# A count of 0 leaves a device out; set every count to 0, or devices=null at install, to run on the CPU only.
 devices:
   amd.com/gpu: 1
 
@@ -26,7 +26,7 @@ apiKey:
   existingSecret: ""
 
 # CPU and memory requests or limits for the pod; devices are added to its limits. A memory
-# limit must leave room for models that load into system memory, as on the CPU backend.
+# limit must leave room for models that load into system memory, as on the CPU backend or the NPU.
 resources: {}
 
 # Where the pod may run, on a cluster with more than one node. On K3s's default local-path
