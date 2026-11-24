@@ -7,6 +7,12 @@ tests:
       - notExists:
           path: spec.storageClassName
 
+  - it: keeps the volume when lemon8s is uninstalled
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
   - it: uses the storage class it is given
     set:
       storage.className: fast-ssd

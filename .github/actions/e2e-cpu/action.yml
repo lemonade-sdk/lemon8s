@@ -1,6 +1,11 @@
 name: End-to-end on the CPU
 description: Install lemon8s with no devices and Lemonade's CPU backend, then run the end-to-end tests against it.
 
+inputs:
+  upgrade-from:
+    description: Install this chart first, download a model, then upgrade to this commit's chart as the playbook does.
+    default: ""
+
 runs:
   using: composite
   steps:
@@ -14,11 +19,28 @@ runs:
 
     - name: Install lemon8s on the CPU
       shell: bash
+      env:
+        CHART: ${{ inputs.upgrade-from || 'deploy/chart/lemon8s' }}
       run: |
         kubectl create namespace lemonade
         kubectl label namespace lemonade pod-security.kubernetes.io/enforce=restricted
-        helm install lemonade deploy/chart/lemon8s --namespace lemonade --set devices=null --set backend=cpu
+        helm install lemonade "$CHART" --namespace lemonade --set devices=null --set backend=cpu
         kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
+
+    - name: Download a model, then upgrade to this commit's chart, which keeps it, the keys, and the values
+      if: inputs.upgrade-from
+      shell: bash
+      env:
+        BASE_CHART: ${{ inputs.upgrade-from }}
+      run: |
+        helm lint --strict deploy/chart/lemon8s -f "$BASE_CHART/tests/all-values.yaml"
+        kubectl -n lemonade exec deploy/lemonade -- lemonade pull "$MODEL"
+        kubectl -n lemonade exec deploy/lemonade -- lemonade list --downloaded | grep -w "$MODEL"
+        kubectl -n lemonade get secret lemonade-api-key -o jsonpath='{.data}' | sha256sum > "$RUNNER_TEMP/keys.sha256"
+        helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reset-then-reuse-values
+        kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
+        kubectl -n lemonade exec deploy/lemonade -- lemonade list --downloaded | grep -w "$MODEL"
+        kubectl -n lemonade get secret lemonade-api-key -o jsonpath='{.data}' | sha256sum -c "$RUNNER_TEMP/keys.sha256"
 
     - name: No other pod reaches Lemonade, until its NetworkPolicy is removed
       shell: bash
@@ -53,4 +75,4 @@ runs:
         export OPENAI_BASE_URL=http://localhost:13308/v1
         OPENAI_API_KEY=$(kubectl -n lemonade get secret lemonade-api-key -o jsonpath='{.data.api-key}' | base64 -d)
         export OPENAI_API_KEY
-        python -m pytest tests --backend cpu
+        python -m pytest tests --backend cpu --model "$MODEL"

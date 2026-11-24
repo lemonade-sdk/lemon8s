@@ -28,7 +28,7 @@ case "$flavor" in
       aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d "$bin/kind"
     chmod +x "$bin/kind"
     kind create cluster --name lemon8s --wait 5m --retain \
-      --image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+      --image kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
     ;;
   k0s)
     docker run -d --name k0s --hostname k0s -v /var/lib/k0s -v /var/log/pods --tmpfs /run --privileged \
