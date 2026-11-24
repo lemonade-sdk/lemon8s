@@ -61,7 +61,7 @@ Lemonade runs models on an AMD XDNA 2 NPU, such as a Strix Halo's, through FastF
    sudo systemctl daemon-reload && sudo systemctl restart k3s
    ```
 
-3. Install a device plugin that offers the NPU, and nothing else, as `devic.es/npu`, and wait until the node offers it. Then give the NPU to lemon8s in place of the GPU, with llama.cpp's models on the CPU. The upgrade restarts the pod, which picks up the new limit:
+3. Install a device plugin that offers the NPU, and nothing else, as `devic.es/npu` (the plugin's default name, after its author's domain), and wait until the node offers it. Then give the NPU to lemon8s in place of the GPU, with llama.cpp's models on the CPU. The upgrade restarts the pod, which picks up the new limit:
 
    ```bash
    kubectl apply -f deploy/npu-device-plugin.yaml
