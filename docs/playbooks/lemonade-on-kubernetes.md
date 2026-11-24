@@ -1,6 +1,6 @@
 # Run Lemonade on Kubernetes
 
-This playbook runs Lemonade's server on Kubernetes, on one host. Install it with the README's [Try it](../../README.md#try-it) steps. This playbook covers what comes after: how it differs from Lemonade on its own, day-to-day changes, what to do when something goes wrong, and common questions.
+This playbook runs Lemonade's server on Kubernetes, on one host. Install it with the README's [Try it](../../README.md#try-it) steps. This playbook covers how it differs from Lemonade on its own, running it on Windows, day-to-day changes, what to do when something goes wrong, and common questions.
 
 ## How it compares with Lemonade on its own
 
@@ -26,6 +26,19 @@ flowchart TB
   plugin["AMD's GPU device plugin"] -->|"amd.com/gpu"| pod
   pod --- gpu["GPU"]
 ```
+
+## Run it on Windows
+
+On Windows, lemon8s runs on the CPU in [Rancher Desktop](https://rancherdesktop.io), which runs K3s in WSL2 and comes with kubectl and Helm:
+
+1. Install [Rancher Desktop](https://docs.rancherdesktop.io/getting-started/installation/), which needs Windows 11 or Windows Server 2025, with WSL installed first. When it first starts, keep Kubernetes enabled and choose containerd as the container engine.
+2. In Git Bash, which comes with Git for Windows, follow the README's steps 2 and 3, but install lemon8s with no devices and Lemonade's CPU backend:
+
+   ```bash
+   helm install lemonade deploy/chart/lemon8s --namespace lemonade --set devices=null --set backend=cpu
+   ```
+
+The GPU, which WSL2 offers only as `/dev/dxg`, and the NPU don't work there yet.
 
 ## Change a setting
 
@@ -107,7 +120,7 @@ To make that the default for every model, set `settings.ctx_size=8192` in an upg
 
 **How safe is it?** It keeps three promises: only its host can reach it, every request but Lemonade's liveness check needs the API key, and that key can't change Lemonade's settings. The pod runs without root, privileges, or a writable root filesystem. There's no TLS yet, and everyone shares one key.
 
-**Does it run on Windows?** Not yet. Kubernetes needs Linux for its control plane, and K3s has no Windows build. On Windows 10 or 11, [Rancher Desktop](https://rancherdesktop.io) runs K3s in WSL2, and running lemon8s there, on the CPU first, is planned.
+**Does it run on Windows?** Yes, on the CPU, in Rancher Desktop, as [Run it on Windows](#run-it-on-windows) shows. Kubernetes needs Linux for its control plane, so Rancher Desktop runs K3s in WSL2. Using the GPU there is planned.
 
 **Does it work with other GPUs, or with NPUs?** The chart requests any device a device plugin offers, through `devices`, but only AMD's GPU device plugin on a Strix Halo has been tested. NPUs are planned.
 
