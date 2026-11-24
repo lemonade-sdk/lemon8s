@@ -19,7 +19,7 @@ lemon8s today, on K3s:
 
 ```mermaid
 flowchart TB
-  apps["Apps on the host"] -->|"kubectl port-forward svc/lemonade 13305, API key required"| pod["Pod with Lemonade's own image: non-root, read-only root filesystem, no capabilities"]
+  apps["Apps on the host"] -->|"kubectl port-forward svc/lemonade 13308, API key required"| pod["Pod with Lemonade's own image: non-root, read-only root filesystem, no capabilities"]
   policy["NetworkPolicy: nothing but the host reaches the pod"] -.- pod
   volume[("Volume lemonade-models: models, backends, and config")] --- pod
   secret["Secret: an API key for apps and a separate admin key"] --- pod
@@ -29,20 +29,29 @@ flowchart TB
 
 ## Change a setting
 
-[values.yaml](../../deploy/chart/lemon8s/values.yaml) lists the settings. Change one with an upgrade, then start the port-forward again, because it follows one pod and the pod restarts:
+[values.yaml](../../deploy/chart/lemon8s/values.yaml) lists the settings. Change one with an upgrade, which keeps your other settings and takes the chart's new defaults, then start the port-forward again, because it follows one pod and the pod restarts:
 
 ```bash
-helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reuse-values --set backend=rocm
+helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reset-then-reuse-values --set backend=rocm
 ```
 
-To run on the CPU only, use `--set devices=null --set backend=cpu`. A backend set through Lemonade's own settings takes precedence over the chart's. The volume's size and storage class are set at install, and an upgrade can't change them.
+Other settings work the same way:
+
+- **Run on the CPU only:** `--set devices=null --set backend=cpu`. To give the pod the GPU again: `--set "devices.amd\.com/gpu=1" --set backend=auto`.
+- **Another Service port:** `--set service.port=13310`, then forward that port instead of 13308. To change only the port on the host, forward another local port instead, as Troubleshooting shows.
+- **Any of Lemonade's settings,** by its name in Lemonade's `config.json`, such as `--set settings.ctx_size=8192`; for the llama.cpp backend, use `backend`. A setting changed through Lemonade itself takes precedence over the chart's.
+- **CPU and memory for the pod,** on a host it shares: `--set resources.requests.cpu=2 --set resources.requests.memory=8Gi`.
+- **Which node it runs on,** in a cluster with more than one: `nodeSelector`, `tolerations`, and `affinity`. On K3s's default storage, set them at install, because the volume stays on the node where the pod first ran.
+- **Keys from a Secret of your own,** with two different, non-empty keys, `api-key` and `admin-api-key`: `--set apiKey.existingSecret=<name>`.
+
+The volume's size and storage class are set at install, and an upgrade can't change them.
 
 ## Reach it from another computer
 
 Forward the port over SSH, then use the same URL, key, and model name there:
 
 ```bash
-ssh -N -L 13305:localhost:13305 <you>@<host>
+ssh -N -L 13308:localhost:13308 <you>@<host>
 ```
 
 ## Issue new keys
@@ -51,11 +60,11 @@ Apps use the `api-key` in the `lemonade-api-key` Secret. The `admin-api-key` bes
 
 ```bash
 kubectl -n lemonade delete secret lemonade-api-key
-helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reuse-values
+helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reset-then-reuse-values
 kubectl -n lemonade rollout restart deploy/lemonade
 ```
 
-The old keys stop working once the pod restarts.
+The old keys stop working once the pod restarts. With a Secret of your own, replace its keys, then run only the last command.
 
 ## Uninstall
 
@@ -76,7 +85,7 @@ sudo systemctl restart k3s
 kubectl -n kube-system rollout restart deploy/coredns
 ```
 
-**The port-forward fails, or apps work without a key.** Another Lemonade on the host holds port 13305. Stop it with `sudo systemctl stop lemond`, or forward another port, such as `kubectl -n lemonade port-forward svc/lemonade 13306:13305`.
+**The port-forward fails.** Another program on the host holds port 13308. Forward another local port, such as `kubectl -n lemonade port-forward svc/lemonade 13309:13308`, and use it in the URL.
 
 **Apps get "connection refused" after an upgrade or restart.** The port-forward ended with the old pod. Start it again.
 
@@ -85,6 +94,10 @@ kubectl -n kube-system rollout restart deploy/coredns
 ```bash
 kubectl -n lemonade exec deploy/lemonade -- lemonade load Qwen3-4B-Instruct-2507-GGUF --ctx-size 8192
 ```
+
+To make that the default for every model, set `settings.ctx_size=8192` in an upgrade.
+
+**A model runs on the CPU, though the host has a GPU.** With `backend=auto`, Lemonade picks the best llama.cpp build already on the volume, and downloads one only when there's none. So once only the CPU build is there, `auto` keeps using it. Set the backend you want, and give the pod the GPU again if you ran it on the CPU only: `--set backend=vulkan --set "devices.amd\.com/gpu=1"`, in an upgrade.
 
 **The host's disk fills up.** On K3s, the volume lives on the host's disk, under `/var/lib/rancher/k3s/storage` by default, and its size isn't enforced. Delete models you don't need with `kubectl -n lemonade exec deploy/lemonade -- lemonade delete <model>`, or install K3s with `--default-local-storage-path` pointing at a larger disk.
 

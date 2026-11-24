@@ -23,17 +23,19 @@ Before you ask for review, check your change the way reviewers will:
 
 ## Tests
 
-Every pull request runs [the checks](workflows/check.yml): spelling, Markdown, and links; Python lint and format; the chart's lint, schema, and [unit tests](../deploy/chart/lemon8s/tests); the workflows themselves; and Lemonade's [comment check](https://github.com/lemonade-sdk/lemonade/blob/main/tools/check_comment_slop.py) on the lines a pull request changes.
+Every pull request runs [the checks](workflows/check.yml): spelling, Markdown, and links; Python lint and format; the chart's lint, schema, and [unit tests](../deploy/chart/lemon8s/tests); the workflows themselves; Lemonade's [comment check](https://github.com/lemonade-sdk/lemonade/blob/main/tools/check_comment_slop.py) on the lines a pull request changes; and the end-to-end tests below, on the CPU, in K3s on Linux, along with a check that no other pod can reach Lemonade. A pull request can merge once the **Checks** job passes, which needs all of these. On your first pull request, the checks start once a maintainer approves them. A Windows job also tries the end-to-end tests in [Rancher Desktop](https://rancherdesktop.io), on pushes to `main`, once a week, and when started by hand; it doesn't run on pull requests or block merges yet.
 
 The end-to-end tests in [`tests/e2e`](../tests/e2e) can be run against a live install, through the port-forward and variables from the README's step 3. The tests unload every model, so use a test install. The tests check that the API key is required and can't change Lemonade's settings, that the model runs with the backend you name, that a model on the GPU takes GPU memory, and that the model answers a question:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install --require-hashes -r tests/requirements.txt
-.venv/bin/pytest tests/e2e --backend vulkan
+.venv/bin/pytest tests --backend vulkan
 ```
 
-Name the backend you set. On a Strix Halo, `auto` picks `vulkan`. A pull request that changes the chart should state which backends and hardware the end-to-end tests passed on.
+Install or upgrade with the backend you mean to test, such as `--set backend=vulkan`, and pass the same name to `--backend`. CI runs the end-to-end tests only on the CPU, so a pull request that changes the chart should also state which GPU backends and hardware they passed on. If you have no GPU to test on, say so, and a maintainer will run them.
+
+Dependabot updates the actions, the test requirements, and Lemonade's image. Other pinned versions, such as those at the top of [check.yml](workflows/check.yml), the images and installers in its jobs, Python in the [end-to-end action](actions/e2e-cpu/action.yml), and the README's K3s and device plugin, are updated by hand, along with the checksum or digest beside each.
 
 ## AI tools
 

@@ -1,3 +1,5 @@
+{{- $secret := .Values.apiKey.existingSecret | default (printf "%s-api-key" .Release.Name) }}
+{{- $limits := mergeOverwrite (deepCopy ((.Values.resources).limits | default dict)) (.Values.devices | default dict) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,6 +36,18 @@ spec:
         {{- end }}
         seccompProfile:
           type: RuntimeDefault
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: lemonade
           image: {{ .Values.image }}
@@ -45,12 +59,12 @@ spec:
             - name: LEMONADE_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-api-key
+                  name: {{ $secret }}
                   key: api-key
             - name: LEMONADE_ADMIN_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-api-key
+                  name: {{ $secret }}
                   key: admin-api-key
           ports:
             - name: http
@@ -65,10 +79,16 @@ spec:
             capabilities:
               drop:
                 - ALL
-          {{- with .Values.devices }}
+          {{- if or $limits (.Values.resources).requests }}
           resources:
+            {{- with (.Values.resources).requests }}
+            requests:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            {{- with $limits }}
             limits:
               {{- toYaml . | nindent 14 }}
+            {{- end }}
           {{- end }}
           volumeMounts:
             - name: data

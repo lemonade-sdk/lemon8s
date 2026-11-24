@@ -1,3 +1,5 @@
+# Each paragraph stays on one line, so an edit doesn't reflow it.
 MD013: false
-MD033: false
-MD041: false
+# The README's header centers the wordmark and slogan, which needs HTML.
+MD033:
+  allowed_elements: [h1, picture, source, img, h3]

@@ -4,16 +4,29 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  HELM_VERSION: v4.3.2
+  K3S_VERSION: v1.37.2+k3s1
+  RUFF_VERSION: 0.17.6
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   lint:
+    name: Lint
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -38,20 +51,26 @@ jobs:
       - name: Python lint
         uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
         with:
-          version: 0.17.6
+          version: ${{ env.RUFF_VERSION }}
 
       - name: Python format
         run: ruff format --check
 
       - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
         with:
-          version: v4.3.2
+          version: ${{ env.HELM_VERSION }}
 
       - name: Chart
         run: |
+          kubernetes=${K3S_VERSION%%+*}
+          every=deploy/chart/lemon8s/tests/all-values.yaml
           helm lint --strict deploy/chart/lemon8s --set "deviceGroups={992}"
-          helm template lemonade deploy/chart/lemon8s --set "deviceGroups={992}" |
-            docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary -kubernetes-version 1.37.2 -
+          helm lint --strict deploy/chart/lemon8s -f "$every"
+          {
+            helm template lemonade deploy/chart/lemon8s --set "deviceGroups={992}"
+            echo ---
+            helm template lemonade deploy/chart/lemon8s -f "$every"
+          } | docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary -kubernetes-version "${kubernetes#v}" -
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/deploy/chart:/apps" \
             docker.io/helmunittest/helm-unittest:4.3.0-1.2.1@sha256:28ea86c3e0b07f501f0c2e9c08b9f41e240f4a4b571cb5106b36cf0f0607e989 lemon8s
 
@@ -61,6 +80,7 @@ jobs:
             docker.io/rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
 
   comment-slop:
+    name: Comment check
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -79,3 +99,98 @@ jobs:
           echo "fd8a1e7fd76df08cd01a51239680cb998af9523322058a70a51380bff686d089  $RUNNER_TEMP/check_comment_slop.py" | sha256sum -c -
           git fetch --no-tags origin "$BASE_REF"
           python3 -I "$RUNNER_TEMP/check_comment_slop.py" --from-ref "$(git merge-base "origin/$BASE_REF" HEAD)" --to-ref HEAD
+
+  e2e-cpu:
+    name: End-to-end on the CPU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: K3s
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/k3s-install.sh" "https://raw.githubusercontent.com/k3s-io/k3s/$K3S_VERSION/install.sh"
+          echo "ed01f89fd977bf20ac1516bbebf8370bf3ddbaa55dac8aba610956a4c78cc00b  $RUNNER_TEMP/k3s-install.sh" | sha256sum -c -
+          INSTALL_K3S_VERSION="$K3S_VERSION" INSTALL_K3S_SYMLINK=force \
+            INSTALL_K3S_EXEC="--disable=traefik --disable=servicelb" sh "$RUNNER_TEMP/k3s-install.sh"
+          (umask 077 && mkdir -p ~/.kube && sudo k3s kubectl config view --raw | tee ~/.kube/k3s.yaml >/dev/null)
+          export KUBECONFIG=$HOME/.kube/k3s.yaml
+          echo "KUBECONFIG=$KUBECONFIG" >> "$GITHUB_ENV"
+          timeout 180 bash -c 'until kubectl get nodes | grep -q " Ready"; do sleep 2; done' || { kubectl get nodes -o wide; exit 1; }
+
+      - name: Install lemon8s and run the end-to-end tests
+        uses: ./.github/actions/e2e-cpu
+        timeout-minutes: 20
+
+      - name: Cluster state
+        if: ${{ !success() }}
+        run: |
+          kubectl get pods,pvc,events -A || true
+          kubectl -n lemonade describe pod,pvc || true
+          kubectl -n lemonade logs deploy/lemonade --tail=200 || true
+          cat "$RUNNER_TEMP/port-forward.log" || true
+          sudo journalctl -u k3s --no-pager | tail -n 200
+
+  e2e-windows:
+    name: End-to-end on Windows, through Rancher Desktop (not required)
+    if: github.event_name != 'pull_request'
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download Rancher Desktop
+        run: |
+          curl -fsSL -o rancher-desktop.msi \
+            https://github.com/rancher-sandbox/rancher-desktop/releases/download/v1.25.0/Rancher.Desktop.Setup.1.25.0.msi
+          echo "4d75ded96424bcf0429fa310cbf61fb057fbd7860f6376eecbc20ed2623372a393f5fb242efd6767ccb4b0091b096ee77e62c07097011864cc4be30014275ff0  rancher-desktop.msi" |
+            sha512sum -c -
+
+      - name: Install Rancher Desktop
+        shell: pwsh
+        run: |
+          $log = "$env:RUNNER_TEMP\rancher-desktop-install.log"
+          $install = Start-Process msiexec.exe -Wait -PassThru -ArgumentList '/i', 'rancher-desktop.msi', '/passive', 'ALLUSERS=1', '/lv*x', $log
+          if ($install.ExitCode -ne 0) { Get-Content $log -Tail 50; exit $install.ExitCode }
+          'C:\Program Files\Rancher Desktop\resources\resources\win32\bin' | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Start Kubernetes in Rancher Desktop
+        timeout-minutes: 25
+        env:
+          RD_LOGS_DIR: ${{ runner.temp }}/rd-logs
+        run: |
+          rdctl start --no-modal-dialogs --application.updater.enabled=false --application.telemetry.enabled=false \
+            --kubernetes.enabled --kubernetes.version=1.37.1 --kubernetes.options.traefik=false \
+            --container-engine.name=containerd --wait --wait-timeout 20m
+          timeout 600 bash -c 'until kubectl get nodes | grep -q " Ready"; do sleep 5; done' || { kubectl get nodes -o wide; exit 1; }
+
+      - name: Install lemon8s and run the end-to-end tests
+        uses: ./.github/actions/e2e-cpu
+        timeout-minutes: 25
+
+      - name: Cluster state
+        if: ${{ !success() }}
+        run: |
+          kubectl get pods,pvc,events -A || true
+          kubectl -n lemonade describe pod,pvc || true
+          kubectl -n lemonade logs deploy/lemonade --tail=200 || true
+          cat "$RUNNER_TEMP/port-forward.log" || true
+          tail -n 200 "$RUNNER_TEMP"/rd-logs/{k3s,background,wsl}.log || true
+
+  checks:
+    name: Checks
+    if: always()
+    needs: [lint, comment-slop, e2e-cpu]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every required check passed or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$RESULTS"
+          jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<< "$RESULTS" >/dev/null

@@ -1,0 +1,33 @@
+backend: vulkan
+settings:
+  ctx_size: 8192
+devices:
+  amd.com/gpu: 1
+  example.com/npu: 1
+deviceGroups: [992, 44]
+service:
+  port: 13310
+apiKey:
+  existingSecret: team-keys
+resources:
+  requests:
+    cpu: "2"
+    memory: 8Gi
+  limits:
+    cpu: "8"
+nodeSelector:
+  kubernetes.io/hostname: node-a
+tolerations:
+  - key: gpu
+    operator: Exists
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values: [amd64]
+storage:
+  size: 50Gi
+  className: fast-ssd
