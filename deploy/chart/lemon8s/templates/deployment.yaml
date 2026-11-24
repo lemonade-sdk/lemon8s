@@ -1,7 +1,7 @@
 {{- $secret := .Values.apiKey.existingSecret | default (printf "%s-api-key" .Release.Name) }}
 {{- $devices := dict }}
 {{- range $name, $count := .Values.devices }}
-{{- if not (kindIs "invalid" $count) }}
+{{- if $count }}
 {{- $_ := set $devices $name $count }}
 {{- end }}
 {{- end }}

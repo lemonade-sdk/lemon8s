@@ -44,7 +44,31 @@ tests:
           value:
             example.com/npu: 1
 
-  - it: skips a device whose entry is null, as an upgrade that leaves the NPU stores it
+  - it: leaves out a device whose count is 0
+    template: deployment.yaml
+    set:
+      devices:
+        amd.com/gpu: 0
+        example.com/npu: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits
+          value:
+            example.com/npu: 1
+
+  - it: runs on the CPU when every device's count is 0, with no groups needed
+    template: deployment.yaml
+    set:
+      devices:
+        amd.com/gpu: 0
+      deviceGroups: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].resources
+      - notExists:
+          path: spec.template.spec.securityContext.supplementalGroups
+
+  - it: skips a device whose entry is null, as an upgrade can store it
     template: deployment.yaml
     set:
       devices:

@@ -37,8 +37,8 @@ helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reset-then-reuse-values
 
 Other settings work the same way:
 
-- **Run on the CPU only:** `--set devices=null --set backend=cpu`. To give the pod the GPU again: `--set "devices.amd\.com/gpu=1" --set backend=auto`.
-- **Another device instead of the GPU:** a device you add joins the default `amd.com/gpu` entry rather than replacing it, so remove that entry too: `--set "devices.amd\.com/gpu=null" --set "devices.<resource>=1"`.
+- **Run on the CPU only:** `--set "devices.amd\.com/gpu=0" --set backend=cpu`. To give the pod the GPU again: `--set "devices.amd\.com/gpu=1" --set backend=auto`.
+- **Another device instead of the GPU:** a device you add joins the default `amd.com/gpu` entry rather than replacing it, so set that entry to 0: `--set "devices.amd\.com/gpu=0" --set "devices.<resource>=1"`. A count of 0 leaves a device out, and later upgrades keep it.
 - **Another Service port:** `--set service.port=13310`, then forward that port instead of 13308. To change only the port on the host, forward another local port instead, as Troubleshooting shows.
 - **Any of Lemonade's settings,** by its name in Lemonade's `config.json`, such as `--set settings.ctx_size=8192`; for the llama.cpp backend, use `backend`. A setting changed through Lemonade itself takes precedence over the chart's.
 - **CPU and memory for the pod,** on a host it shares: `--set resources.requests.cpu=2 --set resources.requests.memory=8Gi`.
@@ -67,7 +67,7 @@ Lemonade runs models on an AMD XDNA 2 NPU, such as a Strix Halo's, through FastF
    kubectl apply -f deploy/npu-device-plugin.yaml
    kubectl wait node --all --for=jsonpath='{.status.allocatable.devic\.es/npu}'=1 --timeout=2m
    helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reset-then-reuse-values \
-     --set "devices.amd\.com/gpu=null" --set "devices.devic\.es/npu=1" --set backend=cpu
+     --set "devices.amd\.com/gpu=0" --set "devices.devic\.es/npu=1" --set backend=cpu
    kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
    ```
 
@@ -79,6 +79,8 @@ Lemonade runs models on an AMD XDNA 2 NPU, such as a Strix Halo's, through FastF
    ```
 
 A pod memory limit also bounds the memory FastFlowLM maps for the NPU. Under a 3 GiB limit, Qwen3-0.6B, which maps 1.5 GB, ran, but Gemma 3 4B, which maps 4.2 GB, failed at its first request with "Failed to load gemma3:4b model!", though Lemonade had reported it loaded. Leave `resources.limits.memory` unset, or set it above what the model maps.
+
+To leave the NPU, set its count to 0 in an upgrade: `--set "devices.devic\.es/npu=0" --set backend=cpu` runs on the CPU only, and `--set "devices.devic\.es/npu=0" --set "devices.amd\.com/gpu=1" --set backend=auto` gives the pod the GPU again.
 
 ## Reach it from another computer
 
