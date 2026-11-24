@@ -12,6 +12,15 @@ Ask questions and share ideas in an issue or on [Lemonade's Discord](https://dis
 
 lemon8s follows [Lemonade's philosophy](https://github.com/lemonade-sdk/lemonade/blob/main/docs/dev/philosophy.md). In particular, if Kubernetes, K3s, Lemonade, or a maintained upstream tool already does the job, we use it instead of writing our own. We aim for wide compatibility over a strictly optimized configuration.
 
+Before you ask for review, check your change the way reviewers will:
+
+- **Nothing reinvented,** as above.
+- **Nothing extra:** can anything be deleted or merged with no loss?
+- **Said once:** is this logic, setting, or explanation already somewhere else?
+- **Safe by default:** does it widen what anyone can reach, or weaken a default?
+- **Holds up on a shared cluster:** upgrades, restarts, eviction, a full disk.
+- **Clear to the person using it:** someone installing for the first time, or connecting an app.
+
 ## Tests
 
 Every pull request runs [the checks](workflows/check.yml): spelling, Markdown, and links; Python lint and format; the chart's lint, schema, and [unit tests](../deploy/chart/lemon8s/tests); the workflows themselves; and Lemonade's [comment check](https://github.com/lemonade-sdk/lemonade/blob/main/tools/check_comment_slop.py) on the lines a pull request changes.
