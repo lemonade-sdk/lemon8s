@@ -38,7 +38,7 @@ On Windows, lemon8s runs on the CPU in [Rancher Desktop](https://rancherdesktop.
    helm install lemonade deploy/chart/lemon8s --namespace lemonade --set devices=null --set backend=cpu
    ```
 
-The GPU, which WSL2 offers only as `/dev/dxg`, and the NPU don't work there yet.
+The GPU, which WSL2 offers only as `/dev/dxg`, doesn't work there yet, and WSL2 doesn't offer the NPU.
 
 ## Change a setting
 
@@ -120,7 +120,7 @@ To make that the default for every model, set `settings.ctx_size=8192` in an upg
 
 **How safe is it?** It keeps three promises: only its host can reach it, every request but Lemonade's liveness check needs the API key, and that key can't change Lemonade's settings. The pod runs without root, privileges, or a writable root filesystem. There's no TLS yet, and everyone shares one key.
 
-**Does it run on Windows?** Yes, on the CPU, in Rancher Desktop, as [Run it on Windows](#run-it-on-windows) shows. Kubernetes needs Linux for its control plane, so Rancher Desktop runs K3s in WSL2. Using the GPU there is planned.
+**Does it run on Windows?** Yes, on the CPU, in Rancher Desktop, as [Run it on Windows](#run-it-on-windows) shows. Kubernetes needs Linux for its control plane, so Rancher Desktop runs K3s in WSL2. Using the GPU there is being tried.
 
 **Does it work with other GPUs, or with NPUs?** The chart requests any device a device plugin offers, through `devices`, but only AMD's GPU device plugin on a Strix Halo has been tested. NPUs are planned.
 
