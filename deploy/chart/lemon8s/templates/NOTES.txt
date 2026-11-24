@@ -1,0 +1,12 @@
+Wait for Lemonade to start and load a model, then connect your apps through a port-forward,
+with the API key and the model's name:
+
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ .Release.Name }} -- lemonade load Qwen3-4B-Instruct-2507-GGUF
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }} {{ .Values.service.port }} >/dev/null &
+  export OPENAI_BASE_URL=http://localhost:{{ .Values.service.port }}/v1
+  export OPENAI_API_KEY=$(kubectl -n {{ .Release.Namespace }} get secret {{ .Values.apiKey.existingSecret | default (printf "%s-api-key" .Release.Name) }} -o jsonpath='{.data.api-key}' | base64 -d)
+
+The port-forward ends when the pod restarts, such as after an upgrade, so start it again then.
+To change a setting, reach Lemonade from another computer, or troubleshoot, see
+https://github.com/lemonade-sdk/lemon8s/blob/main/docs/playbooks/lemonade-on-kubernetes.md
