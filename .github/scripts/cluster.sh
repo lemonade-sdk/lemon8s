@@ -82,6 +82,10 @@ case "$flavor" in
 esac
 
 timeout 300 bash -c 'until kubectl get nodes | grep -q " Ready"; do sleep 2; done' || { kubectl get nodes -o wide; exit 1; }
+{
+  timeout 300 bash -c 'until kubectl -n kube-system get pods -l k8s-app=kube-dns -o name | grep -q .; do sleep 2; done' &&
+    kubectl -n kube-system wait --for=condition=Ready pod -l k8s-app=kube-dns --timeout=5m
+} || { echo "cluster DNS isn't ready" >&2; kubectl -n kube-system get pods -o wide; exit 1; }
 
 # k0s, RKE2, and kubeadm ship no default storage class; Rancher's local-path provisioner is the one K3s bundles.
 if [ "$flavor" = k0s ] || [ "$flavor" = rke2 ] || [ "$flavor" = kubeadm ]; then
