@@ -1,6 +1,6 @@
 # Contributing to lemon8s
 
-Thanks for your interest in lemon8s! It's an experimental prototype, at present, and its interfaces and structure and even goals are subject to change. We welcome community discussions.
+Thanks for your interest in lemon8s! It's an experimental prototype at present, and its interfaces, structure, and even goals are subject to change. We welcome community discussions.
 
 Everyone taking part must follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes.
 
@@ -10,7 +10,7 @@ Ask questions and share ideas in an issue or on [Lemonade's Discord](https://dis
 
 ## How we build lemon8s
 
-lemon8s follows [Lemonade's philosophy](https://github.com/lemonade-sdk/lemonade/blob/main/docs/dev/philosophy.md). In particular, if Kubernetes, K3s, Lemonade, or a maintained upstream tool already does the job, we use it instead of writing our own. We aim for wide compatibility over a strict optimized configuration.
+lemon8s follows [Lemonade's philosophy](https://github.com/lemonade-sdk/lemonade/blob/main/docs/dev/philosophy.md). In particular, if Kubernetes, K3s, Lemonade, or a maintained upstream tool already does the job, we use it instead of writing our own. We aim for wide compatibility over a strictly optimized configuration.
 
 ## AI tools
 

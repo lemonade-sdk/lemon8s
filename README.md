@@ -7,7 +7,7 @@
 
 <h3 align="center">Refreshingly orchestrated local AI</h3>
 
-Goal: One private AI endpoint for your team, with the easy deployment of Lemonade and the controls and scale of Kubernetes.
+Goal: one private AI endpoint for your team, with the easy deployment of Lemonade and the controls and scale of Kubernetes.
 
 > [!WARNING]
 > lemon8s is an experimental prototype. Expect breaking changes, and don't rely on lemon8s.

@@ -4,7 +4,7 @@ lemon8s exists to keep each conversation private to the people and hosts allowed
 
 ## Report a vulnerability
 
-Please report vulnerabilities privately. Don't open a public issue, discussion or pull request: that discloses the problem before a fix exists.
+Please report vulnerabilities privately. Don't open a public issue, discussion, or pull request: that discloses the problem before a fix exists.
 
 Use either channel:
 
@@ -31,5 +31,5 @@ lemon8s's security model, with each promise it makes, arrives in this repository
 
 ## Out of scope
 
-- **Upstream components lemon8s runs unmodified**, such as K3s, llama.cpp and Lemonade: report those to their projects. If lemon8s's configuration of a component is what makes it exploitable, report it here.
-- **AMD hardware, drivers and firmware:** report through [AMD Product Security](https://www.amd.com/en/resources/product-security.html).
+- **Upstream components lemon8s runs unmodified**, such as K3s, llama.cpp, and Lemonade: report those to their projects. If lemon8s's configuration of a component is what makes it exploitable, report it here.
+- **AMD hardware, drivers, and firmware:** report through [AMD Product Security](https://www.amd.com/en/resources/product-security.html).
