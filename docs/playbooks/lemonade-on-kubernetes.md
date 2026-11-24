@@ -1,6 +1,6 @@
 # Run Lemonade on Kubernetes
 
-This playbook runs Lemonade's server on Kubernetes, on one host, as lemon8s does today. Install it with the README's [Try it](../../README.md#try-it) steps. This playbook covers what comes after: how it differs from Lemonade on its own, day-to-day changes, what to do when something goes wrong, and common questions.
+This playbook runs Lemonade's server on Kubernetes, on one host. Install it with the README's [Try it](../../README.md#try-it) steps. This playbook covers what comes after: how it differs from Lemonade on its own, day-to-day changes, what to do when something goes wrong, and common questions.
 
 ## How it compares with Lemonade on its own
 
@@ -90,9 +90,9 @@ kubectl -n lemonade exec deploy/lemonade -- lemonade load Qwen3-4B-Instruct-2507
 
 ## Questions
 
-**How useful is it today?** It gives apps on one host, and on other computers through SSH, one Lemonade server with an API key, managed by Kubernetes. For one person, Lemonade on its own does the same with fewer steps. lemon8s becomes more useful as the planned parts arrive: data tags, more hosts behind one URL, and access for each person.
+**How useful is it today?** It gives apps on one host, and on other computers through SSH, one Lemonade server with an API key, managed by Kubernetes. For one person, Lemonade on its own does the same with fewer steps. lemon8s becomes more useful after more features land: data tags, more hosts behind one URL, and access for each person.
 
-**How safe is it?** It keeps three promises, which [SECURITY.md](../../.github/SECURITY.md) lists: only its host can reach it, every request but Lemonade's liveness check needs the API key, and that key can't change Lemonade's settings. The pod runs without root, privileges, or a writable root filesystem. There's no TLS yet, everyone shares one key, and Lemonade 2026.47.1 pins no checksum for the Vulkan and CPU llama.cpp builds it downloads from GitHub, so don't rely on it for sensitive data.
+**How safe is it?** It keeps three promises: only its host can reach it, every request but Lemonade's liveness check needs the API key, and that key can't change Lemonade's settings. The pod runs without root, privileges, or a writable root filesystem. There's no TLS yet, and everyone shares one key.
 
 **Does it run on Windows?** Not yet. Kubernetes needs Linux for its control plane, and K3s has no Windows build. On Windows 10 or 11, [Rancher Desktop](https://rancherdesktop.io) runs K3s in WSL2, and running lemon8s there, on the CPU first, is planned.
 
