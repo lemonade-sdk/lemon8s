@@ -12,13 +12,13 @@ Goal: one private AI endpoint for your team, with the easy deployment of Lemonad
 > [!WARNING]
 > lemon8s is an experimental prototype. Expect breaking changes, and don't rely on lemon8s.
 
-lemon8s runs [Lemonade](https://github.com/lemonade-sdk/lemonade) using [K3s](https://k3s.io), a lightweight Kubernetes. People and their AI agents connect with any OpenAI-compatible app. Each conversation is tagged with the kinds of data it may hold, and only people cleared for those tags can open it. To add capacity, you add a host, and the same URL serves more requests.
+Today lemon8s runs [Lemonade](https://github.com/lemonade-sdk/lemonade)'s server on Kubernetes, on one host. People and their AI agents connect with any OpenAI-compatible app and an API key. It's tested with [K3s](https://k3s.io), a lightweight Kubernetes, on a Strix Halo (Ryzen AI Max+ 395), with Lemonade's Vulkan, ROCm, and CPU backends.
+
+Planned: each conversation tagged with the kinds of data it may hold, so that only people cleared for those tags can open it; more hosts behind the same URL; and NPUs as well as GPUs.
 
 ## Try it
 
-Today lemon8s runs Lemonade's server on Kubernetes, on one host. Only its host can reach it, one API key guards it, and none of lemon8s's access controls are here yet. It's tested with K3s on a Strix Halo (Ryzen AI Max+ 395), with Lemonade's Vulkan and ROCm backends.
-
-The chart should run on any Kubernetes with a default storage class and, for a GPU or NPU, its vendor's device plugin. These steps use K3s on Linux with an AMD GPU. If Lemonade already runs on the host, stop it first: it uses the same port and GPU.
+Only its host can reach lemon8s, and an API key guards it. The chart should run on any Kubernetes with a default storage class and, to use a GPU, its vendor's device plugin. These steps use K3s on Linux with an AMD GPU. If Lemonade already runs on the host, stop it first: it uses the same port and GPU.
 
 1. Install K3s without its bundled ingress and load balancer, which lemon8s doesn't use, then [Helm](https://helm.sh/docs/intro/install/) and AMD's GPU device plugin:
 
