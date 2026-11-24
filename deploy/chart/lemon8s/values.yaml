@@ -1,8 +1,12 @@
 image: ghcr.io/lemonade-sdk/lemonade-server:v2026.47.1@sha256:715fbf048ad52c352fbcef37e4645603828119b8d750fb8a4c386e909f10913f
 
-# Lemonade's llama.cpp backend, or auto to let Lemonade choose. A backend set through
-# Lemonade's own settings takes precedence.
+# Lemonade's llama.cpp backend: auto, vulkan, rocm, cuda, or cpu. auto picks the best build
+# already on the volume, or downloads one when there's none.
 backend: auto
+
+# More of Lemonade's settings, by their names in its config.json, such as ctx_size: 8192.
+# These and backend are defaults: a setting changed through Lemonade itself takes precedence.
+settings: {}
 
 # Devices from the host's device plugins, such as a GPU or an NPU, by resource name.
 # Set devices=null to run on the CPU only.
@@ -12,6 +16,21 @@ devices:
 # The host groups that may open those devices' files, such as the render group from
 # `getent group render | cut -d: -f3`. Use an empty list if they need none.
 deviceGroups: null
+
+service:
+  port: 13308
+
+apiKey:
+  # A Secret of your own, with api-key and admin-api-key entries, instead of a generated one.
+  existingSecret: ""
+
+# CPU and memory requests or limits for the pod. devices are added to its limits.
+resources: {}
+
+# Where the pod may run, on a cluster with more than one node.
+nodeSelector: {}
+tolerations: []
+affinity: {}
 
 # Models and llama.cpp builds, kept across restarts and upgrades. Set at install: an
 # upgrade can't change them. K3s's default local-path storage doesn't enforce the size,

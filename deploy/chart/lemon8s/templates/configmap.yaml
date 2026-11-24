@@ -1,3 +1,4 @@
+{{- $defaults := mergeOverwrite (deepCopy (.Values.settings | default dict)) (dict "llamacpp" (dict "backend" .Values.backend)) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,4 +7,4 @@ metadata:
     {{- include "lemon8s.labels" . | nindent 4 }}
 data:
   defaults.json: |
-    {{- dict "llamacpp" (dict "backend" .Values.backend) | toPrettyJson | nindent 4 }}
+    {{- $defaults | toPrettyJson | nindent 4 }}

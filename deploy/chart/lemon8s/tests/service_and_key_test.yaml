@@ -1,0 +1,31 @@
+suite: the Service and the keys
+templates:
+  - service.yaml
+  - secret.yaml
+release:
+  name: lemonade
+  namespace: lemonade
+tests:
+  - it: serves on port 13308 unless told otherwise
+    template: service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 13308
+
+  - it: serves on the port it is given
+    template: service.yaml
+    set:
+      service.port: 13310
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 13310
+
+  - it: generates no Secret when the keys come from a Secret of your own
+    template: secret.yaml
+    set:
+      apiKey.existingSecret: team-keys
+    asserts:
+      - hasDocuments:
+          count: 0

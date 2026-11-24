@@ -88,3 +88,94 @@ tests:
       - matchRegex:
           path: data["defaults.json"]
           pattern: '"backend": "rocm"'
+
+  - it: passes other settings to Lemonade as defaults, with backend taking precedence
+    template: configmap.yaml
+    set:
+      backend: vulkan
+      settings:
+        ctx_size: 8192
+        llamacpp:
+          backend: rocm
+          vulkan_args: "-fa on"
+    asserts:
+      - matchRegex:
+          path: data["defaults.json"]
+          pattern: '"ctx_size": 8192'
+      - matchRegex:
+          path: data["defaults.json"]
+          pattern: '"backend": "vulkan"'
+      - matchRegex:
+          path: data["defaults.json"]
+          pattern: '"vulkan_args": "-fa on"'
+
+  - it: adds CPU and memory requests, and keeps the devices in its limits
+    template: deployment.yaml
+    set:
+      resources:
+        requests:
+          cpu: "2"
+          memory: 8Gi
+        limits:
+          cpu: "8"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources
+          value:
+            requests:
+              cpu: "2"
+              memory: 8Gi
+            limits:
+              cpu: "8"
+              amd.com/gpu: 1
+
+  - it: takes the keys from a Secret of your own
+    template: deployment.yaml
+    set:
+      apiKey.existingSecret: team-keys
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LEMONADE_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: team-keys
+                key: api-key
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LEMONADE_ADMIN_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: team-keys
+                key: admin-api-key
+
+  - it: places the pod with a node selector, tolerations, and affinity
+    template: deployment.yaml
+    set:
+      nodeSelector:
+        kubernetes.io/hostname: node-a
+      tolerations:
+        - key: gpu
+          operator: Exists
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: [amd64]
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            kubernetes.io/hostname: node-a
+      - equal:
+          path: spec.template.spec.tolerations
+          value:
+            - key: gpu
+              operator: Exists
+      - exists:
+          path: spec.template.spec.affinity.nodeAffinity

@@ -9,5 +9,5 @@ spec:
     {{- include "lemon8s.selectorLabels" . | nindent 4 }}
   ports:
     - name: http
-      port: 13308
+      port: {{ .Values.service.port }}
       targetPort: http

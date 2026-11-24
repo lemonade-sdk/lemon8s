@@ -35,7 +35,16 @@ flowchart TB
 helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reuse-values --set backend=rocm
 ```
 
-To run on the CPU only, use `--set devices=null --set backend=cpu`. A backend set through Lemonade's own settings takes precedence over the chart's. The volume's size and storage class are set at install, and an upgrade can't change them.
+Other settings work the same way:
+
+- **Run on the CPU only:** `--set devices=null --set backend=cpu`.
+- **Another port:** `--set service.port=13310`, then forward that port instead of 13308.
+- **Any of Lemonade's settings,** by its name in Lemonade's `config.json`: `--set settings.ctx_size=8192`. A setting changed through Lemonade itself takes precedence over the chart's.
+- **CPU and memory for the pod,** on a host it shares: `--set resources.requests.cpu=2 --set resources.requests.memory=8Gi`.
+- **Which node it runs on,** in a cluster with more than one: `nodeSelector`, `tolerations`, and `affinity`.
+- **Keys from a Secret of your own,** with `api-key` and `admin-api-key` entries: `--set apiKey.existingSecret=<name>`.
+
+The volume's size and storage class are set at install, and an upgrade can't change them.
 
 ## Reach it from another computer
 
@@ -85,6 +94,8 @@ kubectl -n kube-system rollout restart deploy/coredns
 ```bash
 kubectl -n lemonade exec deploy/lemonade -- lemonade load Qwen3-4B-Instruct-2507-GGUF --ctx-size 8192
 ```
+
+To make that the default for every model, set `settings.ctx_size=8192` in an upgrade.
 
 **The host's disk fills up.** On K3s, the volume lives on the host's disk, under `/var/lib/rancher/k3s/storage` by default, and its size isn't enforced. Delete models you don't need with `kubectl -n lemonade exec deploy/lemonade -- lemonade delete <model>`, or install K3s with `--default-local-storage-path` pointing at a larger disk.
 
