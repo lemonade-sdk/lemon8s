@@ -1,0 +1,81 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Spelling
+        uses: crate-ci/typos@276087d9a4f06398b3e04825487805e2d7375888 # v1.52.2
+
+      - name: Markdown
+        uses: DavidAnson/markdownlint-cli2-action@3ce8f712b5d8f31acd8e201be6d97e3d2bb23eb7 # v25.1.0
+        with:
+          config: .github/.markdownlint.yaml
+          globs: "**/*.md"
+
+      - name: Links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --offline --include-fragments --no-progress --hidden .
+
+      - name: Python lint
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
+        with:
+          version: 0.17.6
+
+      - name: Python format
+        run: ruff format --check
+
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          version: v4.3.2
+
+      - name: Chart
+        run: |
+          helm lint --strict deploy/chart/lemon8s --set "deviceGroups={992}"
+          helm template lemonade deploy/chart/lemon8s --set "deviceGroups={992}" |
+            docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary -kubernetes-version 1.37.2 -
+          docker run --rm -v "$PWD/deploy/chart:/apps" \
+            docker.io/helmunittest/helm-unittest:4.3.0-1.2.1@sha256:28ea86c3e0b07f501f0c2e9c08b9f41e240f4a4b571cb5106b36cf0f0607e989 lemon8s
+
+      - name: Workflows
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            docker.io/rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
+
+  comment-slop:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Comments in the change
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/check_comment_slop.py" \
+            https://raw.githubusercontent.com/lemonade-sdk/lemonade/371f38cc1489fe3d5dbd1df86f2773139f07619d/tools/check_comment_slop.py
+          echo "fd8a1e7fd76df08cd01a51239680cb998af9523322058a70a51380bff686d089  $RUNNER_TEMP/check_comment_slop.py" | sha256sum -c -
+          git fetch --no-tags origin "$BASE_REF"
+          python3 -I "$RUNNER_TEMP/check_comment_slop.py" --from-ref "$(git merge-base "origin/$BASE_REF" HEAD)" --to-ref HEAD

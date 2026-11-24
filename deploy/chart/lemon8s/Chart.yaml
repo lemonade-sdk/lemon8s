@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lemon8s
+description: Lemonade's server on Kubernetes, on one host
+type: application
+version: 0.1.0

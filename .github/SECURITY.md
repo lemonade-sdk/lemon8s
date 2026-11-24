@@ -27,7 +27,9 @@ lemon8s is a prototype and has no releases yet. Only the `main` branch is suppor
 
 ## What counts as a vulnerability
 
-lemon8s's security model, with each promise it makes, arrives in this repository with the parts that keep those promises. Until a part is here, a flaw in its design is welcome as an ordinary issue.
+Today lemon8s runs one Lemonade server, and it promises three things: only its host can reach it, every request but Lemonade's liveness check needs the API key, and the API key can't change Lemonade's settings. A way around any of them is a vulnerability.
+
+lemon8s's other promises arrive with the parts that keep them. Until a part is here, a flaw in its design is welcome as an ordinary issue.
 
 ## Out of scope
 

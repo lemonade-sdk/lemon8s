@@ -1,0 +1,21 @@
+image: ghcr.io/lemonade-sdk/lemonade-server:v2026.47.1@sha256:715fbf048ad52c352fbcef37e4645603828119b8d750fb8a4c386e909f10913f
+
+# Lemonade's llama.cpp backend, or auto to let Lemonade choose. A backend set through
+# Lemonade's own settings takes precedence.
+backend: auto
+
+# Devices from the host's device plugins, such as a GPU or an NPU, by resource name.
+# Set devices=null to run on the CPU only.
+devices:
+  amd.com/gpu: 1
+
+# The host groups that may open those devices' files, such as the render group from
+# `getent group render | cut -d: -f3`. Use an empty list if they need none.
+deviceGroups: null
+
+# Models and llama.cpp builds, kept across restarts and upgrades. Set at install: an
+# upgrade can't change them. K3s's default storage doesn't enforce the size, so models
+# fill the host's disk under /var/lib/rancher/k3s/storage.
+storage:
+  size: 100Gi
+  className: ""
