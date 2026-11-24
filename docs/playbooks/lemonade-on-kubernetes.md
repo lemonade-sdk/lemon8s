@@ -97,6 +97,8 @@ kubectl -n lemonade exec deploy/lemonade -- lemonade load Qwen3-4B-Instruct-2507
 
 To make that the default for every model, set `settings.ctx_size=8192` in an upgrade.
 
+**A model runs on the CPU, though the host has a GPU.** With `backend=auto`, Lemonade picks the best llama.cpp build already on the volume, and downloads one only when there's none. So once only the CPU build is there, `auto` keeps using it. Set the backend you want, such as `--set backend=vulkan`, in an upgrade.
+
 **The host's disk fills up.** On K3s, the volume lives on the host's disk, under `/var/lib/rancher/k3s/storage` by default, and its size isn't enforced. Delete models you don't need with `kubectl -n lemonade exec deploy/lemonade -- lemonade delete <model>`, or install K3s with `--default-local-storage-path` pointing at a larger disk.
 
 ## Questions

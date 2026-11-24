@@ -33,7 +33,7 @@ python3 -m venv .venv
 .venv/bin/pytest tests/e2e --backend vulkan
 ```
 
-Name the backend you set. On a Strix Halo, `auto` picks `vulkan`. CI runs them on the CPU, so a pull request that changes the chart should also state which GPU backends and hardware they passed on.
+Name the backend you set. With `auto`, Lemonade keeps using a build already on the volume, so set the backend you mean to test. CI runs them on the CPU, so a pull request that changes the chart should also state which GPU backends and hardware they passed on.
 
 Dependabot updates the actions, the test requirements, and Lemonade's image. Bump these pins by hand:
 
