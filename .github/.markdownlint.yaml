@@ -2,6 +2,4 @@
 MD013: false
 # The README's header centers the wordmark and slogan, which needs HTML.
 MD033:
-  allowed_elements: [p, picture, source, img, h3]
-# The README opens with its wordmark instead of a heading.
-MD041: false
+  allowed_elements: [h1, picture, source, img, h3]

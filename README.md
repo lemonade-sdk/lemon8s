@@ -1,9 +1,9 @@
-<p align="center">
+<h1 align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/wordmark.dark.svg">
     <img alt="lemon8s" src="docs/assets/brand/wordmark.light.svg" width="440">
   </picture>
-</p>
+</h1>
 
 <h3 align="center">Refreshingly orchestrated local AI</h3>
 
