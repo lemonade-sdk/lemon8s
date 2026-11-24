@@ -3,7 +3,7 @@
 # that enforces NetworkPolicy.
 set -euo pipefail
 
-flavor=${1:?usage: cluster.sh k3s|kind|k0s|minikube|rke2}
+flavor=${1:?usage: cluster.sh k3s|kind|k0s|minikube|rke2|kubeadm}
 bin=$RUNNER_TEMP/bin
 kubeconfig=$HOME/.kube/$flavor.yaml
 mkdir -p "$bin" "$HOME/.kube"
@@ -54,6 +54,27 @@ case "$flavor" in
     sudo systemctl enable --now rke2-server.service
     (umask 077 && sudo cat /etc/rancher/rke2/rke2.yaml | tee "$kubeconfig" >/dev/null)
     ;;
+  kubeadm)
+    fetch https://pkgs.k8s.io/core:/stable:/v1.37/deb/Release.key \
+      7627818cf7bae52f9008c93e8b1f961f53dea11d40891778de216fb1b43be54d "$RUNNER_TEMP/kubernetes.asc"
+    sudo install -m 644 "$RUNNER_TEMP/kubernetes.asc" /etc/apt/keyrings/
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes.asc] https://pkgs.k8s.io/core:/stable:/v1.37/deb/ /" |
+      sudo tee /etc/apt/sources.list.d/kubernetes.list >/dev/null
+    sudo apt-get update
+    sudo apt-get install -y kubelet=1.37.2-1.1 kubeadm=1.37.2-1.1
+    # The runner's containerd comes from Docker's package, whose config disables the CRI plugin.
+    containerd config default | sed 's/SystemdCgroup = false/SystemdCgroup = true/' | sudo tee /etc/containerd/config.toml >/dev/null
+    sudo systemctl restart containerd
+    sudo swapoff -a
+    sudo sysctl -w net.ipv4.ip_forward=1
+    sudo kubeadm init --kubernetes-version=v1.37.2 --pod-network-cidr=10.244.0.0/16
+    (umask 077 && sudo cat /etc/kubernetes/admin.conf | tee "$kubeconfig" >/dev/null)
+    kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+    fetch https://helm.cilium.io/cilium-1.20.5.tgz \
+      0c7592eb75179ecf46dd3ec22145916f0164c4401214ea15afb5b230b1d11a21 "$RUNNER_TEMP/cilium.tgz"
+    helm install cilium "$RUNNER_TEMP/cilium.tgz" --namespace kube-system \
+      --set ipam.mode=kubernetes --set operator.replicas=1 --wait --timeout 5m
+    ;;
   *)
     echo "unknown flavor: $flavor" >&2
     exit 2
@@ -62,8 +83,8 @@ esac
 
 timeout 300 bash -c 'until kubectl get nodes | grep -q " Ready"; do sleep 2; done' || { kubectl get nodes -o wide; exit 1; }
 
-# k0s and RKE2 ship no default storage class; Rancher's local-path provisioner is the one K3s bundles.
-if [ "$flavor" = k0s ] || [ "$flavor" = rke2 ]; then
+# k0s, RKE2, and kubeadm ship no default storage class; Rancher's local-path provisioner is the one K3s bundles.
+if [ "$flavor" = k0s ] || [ "$flavor" = rke2 ] || [ "$flavor" = kubeadm ]; then
   manifest=$RUNNER_TEMP/local-path-storage.yaml
   fetch https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml \
     9781b39c24f3f651bd6d6e41b561e04e4904bbdb6d4f8c7a6009df3a702dcd65 "$manifest"
