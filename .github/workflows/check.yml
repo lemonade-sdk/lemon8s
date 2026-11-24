@@ -79,3 +79,71 @@ jobs:
           echo "fd8a1e7fd76df08cd01a51239680cb998af9523322058a70a51380bff686d089  $RUNNER_TEMP/check_comment_slop.py" | sha256sum -c -
           git fetch --no-tags origin "$BASE_REF"
           python3 -I "$RUNNER_TEMP/check_comment_slop.py" --from-ref "$(git merge-base "origin/$BASE_REF" HEAD)" --to-ref HEAD
+
+  e2e-cpu:
+    name: End-to-end on the CPU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: K3s
+        run: |
+          curl -sfL https://raw.githubusercontent.com/k3s-io/k3s/v1.37.2+k3s1/install.sh |
+            INSTALL_K3S_VERSION=v1.37.2+k3s1 INSTALL_K3S_EXEC="--disable=traefik --disable=servicelb" sh -
+          (umask 077 && mkdir -p ~/.kube && sudo k3s kubectl config view --raw | tee ~/.kube/k3s.yaml >/dev/null)
+          export KUBECONFIG=$HOME/.kube/k3s.yaml
+          echo "KUBECONFIG=$KUBECONFIG" >> "$GITHUB_ENV"
+          timeout 180 bash -c 'until kubectl get nodes 2>/dev/null | grep -q " Ready"; do sleep 2; done'
+
+      - uses: ./.github/actions/e2e-cpu
+
+  e2e-windows:
+    name: End-to-end on Windows, through Rancher Desktop
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download Rancher Desktop
+        run: |
+          curl -fsSL -o rancher-desktop.msi \
+            https://github.com/rancher-sandbox/rancher-desktop/releases/download/v1.25.0/Rancher.Desktop.Setup.1.25.0.msi
+          echo "4d75ded96424bcf0429fa310cbf61fb057fbd7860f6376eecbc20ed2623372a393f5fb242efd6767ccb4b0091b096ee77e62c07097011864cc4be30014275ff0  rancher-desktop.msi" |
+            sha512sum -c -
+
+      - name: Install Rancher Desktop
+        shell: pwsh
+        run: |
+          $log = "$env:RUNNER_TEMP\rancher-desktop-install.log"
+          $install = Start-Process msiexec.exe -Wait -PassThru -ArgumentList '/i', 'rancher-desktop.msi', '/passive', 'ALLUSERS=1', '/lv*x', $log
+          if ($install.ExitCode -ne 0) { Get-Content $log -Tail 50; exit $install.ExitCode }
+          'C:\Program Files\Rancher Desktop\resources\resources\win32\bin' | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Start Kubernetes in Rancher Desktop
+        run: |
+          rdctl start --no-modal-dialogs --kubernetes.enabled --application.updater.enabled=false --wait --wait-timeout 20m
+          timeout 600 bash -c 'until kubectl get nodes 2>/dev/null | grep -q " Ready"; do sleep 5; done'
+
+      - uses: ./.github/actions/e2e-cpu
+
+  checks:
+    name: Checks
+    if: always()
+    needs: [lint, comment-slop, e2e-cpu]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every required check passed or was skipped
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          jq -e 'all(. == "success" or . == "skipped")' <<< "$RESULTS"

@@ -1,0 +1,40 @@
+name: End-to-end on the CPU
+description: Install lemon8s with no devices and Lemonade's CPU backend, then run the end-to-end tests against it.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: "3.12"
+
+    - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+      with:
+        version: v4.3.2
+
+    - name: Install lemon8s on the CPU
+      shell: bash
+      run: |
+        kubectl create namespace lemonade
+        kubectl label namespace lemonade pod-security.kubernetes.io/enforce=restricted
+        helm install lemonade deploy/chart/lemon8s --namespace lemonade --set devices=null --set backend=cpu
+        kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
+
+    - name: End-to-end tests
+      shell: bash
+      run: |
+        python -m pip install --require-hashes -r tests/requirements.txt
+        port=$(kubectl -n lemonade get svc lemonade -o jsonpath='{.spec.ports[0].port}')
+        kubectl -n lemonade port-forward svc/lemonade "18080:$port" >/dev/null &
+        timeout 60 bash -c 'until curl -sf http://localhost:18080/live >/dev/null; do sleep 1; done'
+        export OPENAI_BASE_URL=http://localhost:18080/v1
+        OPENAI_API_KEY=$(kubectl -n lemonade get secret lemonade-api-key -o jsonpath='{.data.api-key}' | base64 -d)
+        export OPENAI_API_KEY
+        python -m pytest tests --backend cpu
+
+    - name: Pod status and log
+      if: failure()
+      shell: bash
+      run: |
+        kubectl -n lemonade describe pod
+        kubectl -n lemonade logs deploy/lemonade --tail=200

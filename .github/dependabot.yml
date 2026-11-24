@@ -1,0 +1,24 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/e2e-cpu
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /tests
+    schedule:
+      interval: weekly
+    groups:
+      test-requirements:
+        patterns: ["*"]
+
+  - package-ecosystem: helm
+    directory: /deploy/chart/lemon8s
+    schedule:
+      interval: weekly

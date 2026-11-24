@@ -23,7 +23,7 @@ Before you ask for review, check your change the way reviewers will:
 
 ## Tests
 
-Every pull request runs [the checks](workflows/check.yml): spelling, Markdown, and links; Python lint and format; the chart's lint, schema, and [unit tests](../deploy/chart/lemon8s/tests); the workflows themselves; and Lemonade's [comment check](https://github.com/lemonade-sdk/lemonade/blob/main/tools/check_comment_slop.py) on the lines a pull request changes.
+Every pull request runs [the checks](workflows/check.yml): spelling, Markdown, and links; Python lint and format; the chart's lint, schema, and [unit tests](../deploy/chart/lemon8s/tests); the workflows themselves; Lemonade's [comment check](https://github.com/lemonade-sdk/lemonade/blob/main/tools/check_comment_slop.py) on the lines a pull request changes; and the end-to-end tests below, on the CPU, in K3s on Linux. The **Checks** job passes only when all of them do. A Windows job runs the same end-to-end tests in [Rancher Desktop](https://rancherdesktop.io) but doesn't block a merge yet.
 
 The end-to-end tests in [`tests/e2e`](../tests/e2e) can be run against a live install, through the port-forward and variables from the README's step 3. The tests unload every model, so use a test install. The tests check that the API key is required and can't change Lemonade's settings, that the model runs with the backend you name, that a model on the GPU takes GPU memory, and that the model answers a question:
 
@@ -33,7 +33,13 @@ python3 -m venv .venv
 .venv/bin/pytest tests/e2e --backend vulkan
 ```
 
-Name the backend you set. On a Strix Halo, `auto` picks `vulkan`. A pull request that changes the chart should state which backends and hardware the end-to-end tests passed on.
+Name the backend you set. On a Strix Halo, `auto` picks `vulkan`. CI runs them on the CPU, so a pull request that changes the chart should also state which GPU backends and hardware they passed on.
+
+Dependabot updates the actions, the test requirements, and Lemonade's image. Bump these pins by hand:
+
+- the kubeconform, helm-unittest, and actionlint images, and Lemonade's comment check, in [check.yml](workflows/check.yml);
+- the Helm, ruff, and Python versions, in check.yml and the [end-to-end action](actions/e2e-cpu/action.yml);
+- K3s, in the README and check.yml; AMD's GPU device plugin, in the README; and Rancher Desktop, in check.yml.
 
 ## AI tools
 
