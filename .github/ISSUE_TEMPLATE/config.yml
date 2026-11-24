@@ -1,0 +1,7 @@
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/lemonade-sdk/lemon8s/security/advisories/new
+    about: Report it privately, as SECURITY.md describes, never in a public issue.
+  - name: Questions and discussion
+    url: https://discord.gg/5xXzkMu8Zk
+    about: Ask on Lemonade's community Discord.
