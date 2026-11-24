@@ -1,11 +1,11 @@
 image: ghcr.io/lemonade-sdk/lemonade-server:v2026.47.1@sha256:715fbf048ad52c352fbcef37e4645603828119b8d750fb8a4c386e909f10913f
 
-# Lemonade's llama.cpp backend: auto, vulkan, rocm, cuda, or cpu. auto picks the best build
-# already on the volume, or downloads one when there's none.
+# Lemonade's llama.cpp backend, such as vulkan, rocm, or cpu, or auto to let Lemonade choose.
 backend: auto
 
 # More of Lemonade's settings, by their names in its config.json, such as ctx_size: 8192.
-# These and backend are defaults: a setting changed through Lemonade itself takes precedence.
+# Like backend, they're defaults: a setting changed through Lemonade itself takes precedence.
+# They're stored in a ConfigMap, so keep credentials out of them.
 settings: {}
 
 # Devices from the host's device plugins, such as a GPU or an NPU, by resource name.
@@ -21,13 +21,16 @@ service:
   port: 13308
 
 apiKey:
-  # A Secret of your own, with api-key and admin-api-key entries, instead of a generated one.
+  # A Secret of your own with two different, non-empty keys, api-key and admin-api-key,
+  # instead of a generated one.
   existingSecret: ""
 
-# CPU and memory requests or limits for the pod. devices are added to its limits.
+# CPU and memory requests or limits for the pod; devices are added to its limits. A memory
+# limit must leave room for models that load into system memory, as on the CPU backend.
 resources: {}
 
-# Where the pod may run, on a cluster with more than one node.
+# Where the pod may run, on a cluster with more than one node. On K3s's default local-path
+# storage, set these at install: the volume stays on the node where the pod first ran.
 nodeSelector: {}
 tolerations: []
 affinity: {}

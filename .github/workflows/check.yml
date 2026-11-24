@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -63,9 +63,14 @@ jobs:
       - name: Chart
         run: |
           kubernetes=${K3S_VERSION%%+*}
+          every=deploy/chart/lemon8s/tests/all-values.yaml
           helm lint --strict deploy/chart/lemon8s --set "deviceGroups={992}"
-          helm template lemonade deploy/chart/lemon8s --set "deviceGroups={992}" |
-            docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary -kubernetes-version "${kubernetes#v}" -
+          helm lint --strict deploy/chart/lemon8s -f "$every"
+          {
+            helm template lemonade deploy/chart/lemon8s --set "deviceGroups={992}"
+            echo ---
+            helm template lemonade deploy/chart/lemon8s -f "$every"
+          } | docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary -kubernetes-version "${kubernetes#v}" -
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/deploy/chart:/apps" \
             docker.io/helmunittest/helm-unittest:4.3.0-1.2.1@sha256:28ea86c3e0b07f501f0c2e9c08b9f41e240f4a4b571cb5106b36cf0f0607e989 lemon8s
 

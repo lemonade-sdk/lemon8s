@@ -1,3 +1,6 @@
+{{- if hasKey (.Values.settings | default dict) "port" }}
+{{- fail "settings.port would move Lemonade off the port the pod serves; set service.port instead" }}
+{{- end }}
 {{- $defaults := mergeOverwrite (deepCopy (.Values.settings | default dict)) (dict "llamacpp" (dict "backend" .Values.backend)) }}
 apiVersion: v1
 kind: ConfigMap

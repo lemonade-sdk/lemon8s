@@ -109,6 +109,15 @@ tests:
           path: data["defaults.json"]
           pattern: '"vulkan_args": "-fa on"'
 
+  - it: refuses a port in settings, which would move Lemonade off the pod's port
+    template: deployment.yaml
+    set:
+      settings:
+        port: 13310
+    asserts:
+      - failedTemplate:
+          errorPattern: settings.port would move Lemonade off the port the pod serves
+
   - it: adds CPU and memory requests, and keeps the devices in its limits
     template: deployment.yaml
     set:
