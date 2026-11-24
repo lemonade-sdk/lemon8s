@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-labelledby="t">
+  <title id="t">lemon8s: Refreshingly orchestrated local AI</title>
+  <rect width="1280" height="640" fill="#FFFBEA"/>
+  <image href="wordmark.light.svg" x="220" y="140" width="840" height="192"/>
+  <g font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">
+    <text x="640" y="430" font-size="52" fill="#1F2328">Refreshingly orchestrated local AI</text>
+    <text x="640" y="500" font-size="30" fill="#57606A">Lemonade on Kubernetes · an experimental prototype</text>
+  </g>
+</svg>
