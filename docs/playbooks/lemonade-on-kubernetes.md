@@ -19,7 +19,7 @@ lemon8s today, on K3s:
 
 ```mermaid
 flowchart TB
-  apps["Apps on the host"] -->|"kubectl port-forward svc/lemonade 13305, API key required"| pod["Pod with Lemonade's own image: non-root, read-only root filesystem, no capabilities"]
+  apps["Apps on the host"] -->|"kubectl port-forward svc/lemonade 13308, API key required"| pod["Pod with Lemonade's own image: non-root, read-only root filesystem, no capabilities"]
   policy["NetworkPolicy: nothing but the host reaches the pod"] -.- pod
   volume[("Volume lemonade-models: models, backends, and config")] --- pod
   secret["Secret: an API key for apps and a separate admin key"] --- pod
@@ -42,7 +42,7 @@ To run on the CPU only, use `--set devices=null --set backend=cpu`. A backend se
 Forward the port over SSH, then use the same URL, key, and model name there:
 
 ```bash
-ssh -N -L 13305:localhost:13305 <you>@<host>
+ssh -N -L 13308:localhost:13308 <you>@<host>
 ```
 
 ## Issue new keys
@@ -76,7 +76,7 @@ sudo systemctl restart k3s
 kubectl -n kube-system rollout restart deploy/coredns
 ```
 
-**The port-forward fails, or apps work without a key.** Another Lemonade on the host holds port 13305. Stop it with `sudo systemctl stop lemond`, or forward another port, such as `kubectl -n lemonade port-forward svc/lemonade 13306:13305`.
+**The port-forward fails.** Another program on the host holds port 13308. Forward another local port, such as `kubectl -n lemonade port-forward svc/lemonade 13309:13308`, and use it in the URL.
 
 **Apps get "connection refused" after an upgrade or restart.** The port-forward ended with the old pod. Start it again.
 

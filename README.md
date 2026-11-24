@@ -18,7 +18,7 @@ Planned: each conversation tagged with the kinds of data it may hold, so that on
 
 ## Try it
 
-The chart should run on any Kubernetes with a default storage class and, to use a GPU, its vendor's device plugin. These steps use K3s on Linux with an AMD GPU. If Lemonade already runs on the host, stop it first: it uses the same port and GPU.
+The chart should run on any Kubernetes with a default storage class and, to use a GPU, its vendor's device plugin. These steps use K3s on Linux with an AMD GPU. lemon8s uses port 13308, so a Lemonade already running on the host can keep its 13305; the two share the GPU's memory.
 
 1. Install K3s without its bundled ingress and load balancer, which lemon8s doesn't use, then [Helm](https://helm.sh/docs/intro/install/) and AMD's GPU device plugin:
 
@@ -48,8 +48,8 @@ The chart should run on any Kubernetes with a default storage class and, to use 
 
    ```bash
    kubectl -n lemonade exec deploy/lemonade -- lemonade load Qwen3-4B-Instruct-2507-GGUF
-   kubectl -n lemonade port-forward svc/lemonade 13305 >/dev/null &
-   export OPENAI_BASE_URL=http://localhost:13305/v1
+   kubectl -n lemonade port-forward svc/lemonade 13308 >/dev/null &
+   export OPENAI_BASE_URL=http://localhost:13308/v1
    export OPENAI_API_KEY=$(kubectl -n lemonade get secret lemonade-api-key -o jsonpath='{.data.api-key}' | base64 -d)
    curl "$OPENAI_BASE_URL/chat/completions" -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
      -d '{"model": "Qwen3-4B-Instruct-2507-GGUF", "messages": [{"role": "user", "content": "Hello"}]}'
