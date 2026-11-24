@@ -78,7 +78,7 @@ Lemonade runs models on an AMD XDNA 2 NPU, such as a Strix Halo's, through FastF
    kubectl -n lemonade exec deploy/lemonade -- lemonade load qwen3-0.6b-FLM
    ```
 
-A pod memory limit also bounds the memory FastFlowLM maps for the NPU. Under a 3 GiB limit, Qwen3-0.6B, which maps 1.5 GB, ran, but Gemma 3 4B, which maps 4.2 GB, failed at its first request with "Failed to load gemma3:4b model!", though Lemonade had reported it loaded. Leave `resources.limits.memory` unset, or set it above what the model maps.
+A pod memory limit also bounds the memory FastFlowLM maps for the NPU. Under a 3 GiB limit, Qwen3-0.6B, which maps 1.5 GB, ran, but Gemma 3 4B, which maps 4.2 GB, failed at its first request with "Failed to load gemma3:4b model!", though Lemonade had reported it loaded. Set the pod's memory requests and limits above what the model maps, or leave them unset.
 
 To leave the NPU, set its count to 0 in an upgrade: `--set "devices.devic\.es/npu=0" --set backend=cpu` runs on the CPU only, and `--set "devices.devic\.es/npu=0" --set "devices.amd\.com/gpu=1" --set backend=auto` gives the pod the GPU again.
 
@@ -147,6 +147,6 @@ To make that the default for every model, set `settings.ctx_size=8192` in an upg
 
 **Does it run on Windows?** Not yet. Kubernetes needs Linux for its control plane, and K3s has no Windows build. On Windows 10 or 11, [Rancher Desktop](https://rancherdesktop.io) runs K3s in WSL2, and running lemon8s there, on the CPU first, is planned.
 
-**Does it work with other GPUs, or with NPUs?** The chart requests any device a device plugin offers, through `devices`. AMD's GPU device plugin and a Strix Halo's NPU, as [Use the NPU](#use-the-npu) describes, have each served models; other GPUs, and the GPU and NPU together in one pod, haven't been tested yet.
+**Does it work with other GPUs, or with NPUs?** Today the chart requests any device a device plugin offers, through `devices`. AMD's GPU device plugin and a Strix Halo's NPU, as [Use the NPU](#use-the-npu) describes, have each served models; other GPUs, and the GPU and NPU together in one pod, haven't been tested.
 
 **Why Kubernetes instead of Lemonade on its own?** For one person on one host, Lemonade on its own is simpler. Kubernetes is the base for what's planned: several hosts behind one URL, access for each person, and standard tools, such as Helm, role-based access control, and NetworkPolicy, to run it.

@@ -9,7 +9,7 @@ backend: auto
 settings: {}
 
 # Devices from the host's device plugins, such as a GPU or an NPU, by resource name.
-# Set devices=null to run on the CPU only.
+# A count of 0 leaves a device out; set every count to 0, or devices=null at install, to run on the CPU only.
 devices:
   amd.com/gpu: 1
 
