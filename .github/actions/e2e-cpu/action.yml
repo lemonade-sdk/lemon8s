@@ -24,22 +24,24 @@ runs:
       shell: bash
       run: |
         ip=$(kubectl -n lemonade get pod -l app.kubernetes.io/component=lemonade -o jsonpath='{.items[0].status.podIP}')
+        kubectl -n default run reach-lemonade --restart=Never \
+          --image=docker.io/library/busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec -- sleep 600
+        kubectl -n default wait pod/reach-lemonade --for=condition=Ready --timeout=2m
         reach() {
-          kubectl -n default run "reach-lemonade-$1" --rm -i --restart=Never --quiet \
-            --image=docker.io/library/busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec \
-            -- sh -c "wget -q -T 5 -O /dev/null http://$ip:13305/live && echo reached || echo blocked"
+          kubectl -n default exec reach-lemonade -- sh -c "wget -q -T 5 -O /dev/null http://$ip:13305/live && echo reached || echo blocked"
         }
-        result=$(reach 0)
+        result=$(reach)
         echo "A pod in another namespace: $result"
         grep -qx blocked <<< "$result"
         kubectl -n lemonade delete networkpolicy lemonade
-        for attempt in 1 2 3 4 5; do
-          result=$(reach "$attempt")
+        for _ in 1 2 3 4 5; do
+          result=$(reach)
           grep -qx reached <<< "$result" && break
           sleep 3
         done
         echo "The same pod, without the NetworkPolicy: $result"
         grep -qx reached <<< "$result"
+        kubectl -n default delete pod reach-lemonade --wait=false
 
     - name: End-to-end tests
       shell: bash
