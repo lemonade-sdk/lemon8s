@@ -1,11 +1,13 @@
 """Fixtures for the end-to-end tests, which run against a live lemon8s install."""
 
 import dataclasses
+import email.message
 import json
 import os
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 import pytest
 
@@ -16,6 +18,40 @@ class Lemonade:
     def __init__(self, base_url: str, key: str) -> None:
         self.base_url = base_url.rstrip("/") + "/"
         self.key = key
+
+    def send(
+        self,
+        path: str,
+        data: bytes | None = None,
+        content_type: str = "application/json",
+        *,
+        authorized: bool = True,
+        timeout: float = 60,
+    ) -> tuple[int, email.message.Message, bytes]:
+        """Sends one request and returns its answer as it came.
+
+        Args:
+            path: Relative to the base URL, such as `health`, or from the server's
+                root, such as `/internal/config`.
+            data: The body of a POST, or `None` for a GET.
+            content_type: The body's media type.
+            authorized: Whether to send the API key.
+            timeout: Seconds to wait for the answer.
+
+        Returns:
+            The HTTP status, the answer's headers, and its bytes.
+        """
+        headers = {"Content-Type": content_type}
+        if authorized:
+            headers["Authorization"] = f"Bearer {self.key}"
+        request = urllib.request.Request(
+            urllib.parse.urljoin(self.base_url, path), data=data, headers=headers
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.status, response.headers, response.read()
+        except urllib.error.HTTPError as error:
+            return error.code, error.headers, error.read()
 
     def call(
         self,
@@ -28,8 +64,7 @@ class Lemonade:
         """Sends one request and decodes its JSON answer.
 
         Args:
-            path: Relative to the base URL, such as `health`, or from the server's
-                root, such as `/internal/config`.
+            path: As for `send`.
             body: The JSON body of a POST, or `None` for a GET.
             authorized: Whether to send the API key.
             timeout: Seconds to wait for the answer.
@@ -37,19 +72,42 @@ class Lemonade:
         Returns:
             The HTTP status and the decoded body.
         """
-        headers = {"Content-Type": "application/json"}
-        if authorized:
-            headers["Authorization"] = f"Bearer {self.key}"
-        request = urllib.request.Request(
-            urllib.parse.urljoin(self.base_url, path),
-            data=None if body is None else json.dumps(body).encode(),
-            headers=headers,
+        status, _, raw = self.send(
+            path,
+            None if body is None else json.dumps(body).encode(),
+            authorized=authorized,
+            timeout=timeout,
         )
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.status, json.load(response)
-        except urllib.error.HTTPError as error:
-            return error.code, json.loads(error.read() or b"{}")
+        return status, json.loads(raw or b"{}")
+
+    def transcribe(
+        self, model: str, wav: bytes, *, timeout: float = 60
+    ) -> tuple[int, dict]:
+        """Uploads a WAV file for transcription, as a form with the model's name.
+
+        Args:
+            model: A speech-to-text model in Lemonade's registry.
+            wav: The audio to transcribe.
+            timeout: Seconds to wait for the answer.
+
+        Returns:
+            The HTTP status and the decoded body.
+        """
+        boundary = uuid.uuid4().hex
+        form = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="model"\r\n\r\n{model}\r\n'
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="file"; filename="speech.wav"\r\n'
+            "Content-Type: audio/wav\r\n\r\n"
+        ).encode()
+        status, _, raw = self.send(
+            "audio/transcriptions",
+            form + wav + f"\r\n--{boundary}--\r\n".encode(),
+            f"multipart/form-data; boundary={boundary}",
+            timeout=timeout,
+        )
+        return status, json.loads(raw or b"{}")
 
     def gpu_gb_used(self) -> float | None:
         """Sums the memory in use on every GPU Lemonade sees.
@@ -81,6 +139,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     parser.addoption(
         "--model", default="Qwen3-0.6B-GGUF", help="a model in Lemonade's registry"
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers", "slow: too slow or too large a download for CI, which skips it"
     )
 
 

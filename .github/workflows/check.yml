@@ -123,6 +123,8 @@ jobs:
       - name: Install lemon8s and run the end-to-end tests
         uses: ./.github/actions/e2e-cpu
         timeout-minutes: 20
+        with:
+          slow: true
 
       - name: Cluster state
         if: ${{ !success() }}

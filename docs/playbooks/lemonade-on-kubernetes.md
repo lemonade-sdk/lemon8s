@@ -46,6 +46,38 @@ Other settings work the same way:
 
 The volume's size and storage class are set at install, and an upgrade can't change them.
 
+## Use Lemonade's other engines
+
+Besides chat, these engines run today in Lemonade's pod, at the same URL and key. Each serves OpenAI's endpoint, except reranking, which takes the `query` and `documents` that Jina's and Cohere's clients send. Each downloads its engine and model on first use, which can take minutes; `kubectl -n lemonade exec deploy/lemonade -- lemonade load <model>` does that before an app's first request.
+
+| Engine | Model the end-to-end tests use | Path after `$OPENAI_BASE_URL` |
+| --- | --- | --- |
+| Embeddings (llama.cpp) | `nomic-embed-text-v1-GGUF` | `/embeddings` |
+| Reranking (llama.cpp) | `jina-reranker-v1-tiny-en-GGUF` | `/rerank` |
+| Speech to text (whisper.cpp) | `Whisper-Tiny` | `/audio/transcriptions` |
+| Speech to text (Moonshine) | `Moonshine-Tiny-Streaming` | `/audio/transcriptions` |
+| Text to speech (Kokoro) | `kokoro-v1` | `/audio/speech` |
+| Images (stable-diffusion.cpp) | `SD-Turbo-GGUF` | `/images/generations` |
+
+Lemonade's [API reference](https://github.com/lemonade-sdk/lemonade/blob/main/docs/api/openai.md) has each endpoint's parameters, and its [README](https://github.com/lemonade-sdk/lemonade#readme) the devices each engine supports. For example:
+
+```bash
+curl "$OPENAI_BASE_URL/embeddings" -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
+  -d '{"model": "nomic-embed-text-v1-GGUF", "input": ["A cat sits on the mat."]}'
+curl "$OPENAI_BASE_URL/audio/transcriptions" -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -F model=Whisper-Tiny -F file=@speech.wav
+```
+
+Speech to text takes WAV files only. Moonshine reads 16-bit ones but not floating-point ones, such as Kokoro's `wav` output. Convert other files, such as MP3, with `ffmpeg -i speech.mp3 -c:a pcm_s16le speech.wav`.
+
+The chart's `backend` sets only llama.cpp's build. whisper.cpp and stable-diffusion.cpp pick their own; to choose one, use `settings`, such as `--set settings.whispercpp.backend=vulkan --set settings.sdcpp.backend=vulkan` in an upgrade.
+
+Today the engines share the one pod's memory. Lemonade keeps up to `max_loaded_models` models of each type loaded, one by default, so a chat model, an embedding model, and a speech model can all be loaded at once. If the pod runs out of memory, Kubernetes restarts its container, and every model unloads. `settings.ctx_size` keeps chat models smaller, and `lemonade unload <model>` frees one.
+
+The engines run in Lemonade's container, so anyone with the API key can send them files, such as audio, and a bug in how an engine reads them could expose the admin key.
+
+FastFlowLM, Lemonade's NPU engine, doesn't run yet, because the pod has no NPU, and Ryzen AI runs only on Windows. Lemonade's container backends, such as halobox, can't run inside its pod, because Lemonade starts them as containers of its own. Its other engines, such as OpenMOSS and ACE-Step, haven't been tried.
+
 ## Reach it from another computer
 
 Forward the port over SSH, then use the same URL, key, and model name there:
@@ -99,7 +131,9 @@ To make that the default for every model, set `settings.ctx_size=8192` in an upg
 
 **A model runs on the CPU, though the host has a GPU.** With `backend=auto`, Lemonade picks the best llama.cpp build already on the volume, and downloads one only when there's none. So once only the CPU build is there, `auto` keeps using it. Set the backend you want, and give the pod the GPU again if you ran it on the CPU only: `--set backend=vulkan --set "devices.amd\.com/gpu=1"`, in an upgrade.
 
-**The host's disk fills up.** On K3s, the volume lives on the host's disk, under `/var/lib/rancher/k3s/storage` by default, and its size isn't enforced. Delete models you don't need with `kubectl -n lemonade exec deploy/lemonade -- lemonade delete <model>`, or install K3s with `--default-local-storage-path` pointing at a larger disk.
+**Every model unloaded at once.** The pod likely ran out of memory: `kubectl -n lemonade get pod` shows its restarts rising, and `kubectl -n lemonade describe pod` shows `OOMKilled` as its last state. See how the engines [share the pod's memory](#use-lemonades-other-engines).
+
+**The host's disk fills up.** On K3s, the volume lives on the host's disk, under `/var/lib/rancher/k3s/storage` by default, and its size isn't enforced. Delete models you don't need with `kubectl -n lemonade exec deploy/lemonade -- lemonade delete <model>`, and engine builds with `lemonade backends uninstall <recipe>:<backend>`, such as `llamacpp:cpu`, or install K3s with `--default-local-storage-path` pointing at a larger disk.
 
 ## Questions
 
@@ -108,6 +142,8 @@ To make that the default for every model, set `settings.ctx_size=8192` in an upg
 **How safe is it?** It keeps three promises: only its host can reach it, every request but Lemonade's liveness check needs the API key, and that key can't change Lemonade's settings. The pod runs without root, privileges, or a writable root filesystem. There's no TLS yet, and everyone shares one key.
 
 **Does it run on Windows?** Not yet. Kubernetes needs Linux for its control plane, and K3s has no Windows build. On Windows 10 or 11, [Rancher Desktop](https://rancherdesktop.io) runs K3s in WSL2, and running lemon8s there, on the CPU first, is planned.
+
+**Does it run Lemonade's other engines?** Several do. [Use Lemonade's other engines](#use-lemonades-other-engines) lists those tested and those that don't run yet.
 
 **Does it work with other GPUs, or with NPUs?** The chart requests any device a device plugin offers, through `devices`, but only AMD's GPU device plugin on a Strix Halo has been tested. NPUs are planned.
 
