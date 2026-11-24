@@ -134,7 +134,7 @@ jobs:
           sudo journalctl -u k3s --no-pager | tail -n 200
 
   e2e-windows:
-    name: End-to-end on Windows, through Rancher Desktop (not required)
+    name: End-to-end on Windows, through Rancher Desktop
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -183,7 +183,7 @@ jobs:
   checks:
     name: Checks
     if: always()
-    needs: [lint, comment-slop, e2e-cpu]
+    needs: [lint, comment-slop, e2e-cpu, e2e-windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
