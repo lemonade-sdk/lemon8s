@@ -18,7 +18,7 @@ Planned: each conversation tagged with the kinds of data it may hold, so that on
 
 ## Try it
 
-The chart should run on any Kubernetes with a default storage class and, to use a GPU, its vendor's device plugin. These steps use K3s on Linux with an AMD GPU. lemon8s uses port 13308, so a Lemonade already running on the host can keep its 13305; the two share the GPU's memory.
+The chart should run on any Kubernetes with a default storage class and, to use a GPU, its vendor's device plugin. These steps use K3s on Linux with an AMD GPU. lemon8s uses port 13308, so a Lemonade already running on the host can keep its 13305. The two then share the GPU's memory, so each has less room for models.
 
 1. Install K3s without its bundled ingress and load balancer, which lemon8s doesn't use, then [Helm](https://helm.sh/docs/intro/install/) and AMD's GPU device plugin:
 
