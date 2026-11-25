@@ -674,10 +674,9 @@ impl State {
             self.mass_revocations += 1;
             eprintln!(
                 "control: revoked {} users within {} minutes, more than the {active} still \
-                 active, as a wrong namespace or a mistaken delete would: {}",
+                 active, as a wrong namespace or a mistaken delete would; status lists them",
                 mass.len(),
-                REVOCATION_WINDOW.as_secs() / 60,
-                mass.iter().map(Name::as_str).collect::<Vec<_>>().join(",")
+                REVOCATION_WINDOW.as_secs() / 60
             );
         }
         self.mass_revocation = mass;

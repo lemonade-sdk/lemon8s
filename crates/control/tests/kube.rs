@@ -9,6 +9,8 @@
 
 mod common;
 
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use aws_lc_rs::rand::{SecureRandom, SystemRandom};
@@ -33,6 +35,9 @@ const RBAC: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/rbac.json");
 /// The namespace `rbac.json` names, which each test's namespace replaces.
 const RBAC_NAMESPACE: &str = "lemonade";
 const READY_GATE: &str = "lemon8s.io/test-ready";
+/// Set, to `<namespace>/<service account>`, in the copy of this test binary a test runs to read
+/// control's log.
+const CHILD: &str = "LEMON8S_TEST_CHILD";
 
 /// A client for the test cluster, the CRDs installed, a fresh namespace and a Ready node.
 struct Cluster {
@@ -42,16 +47,28 @@ struct Cluster {
     node: String,
 }
 
+async fn test_config() -> Config {
+    let path = std::env::var("LEMON8S_KUBECONFIG")
+        .expect("set LEMON8S_KUBECONFIG to the test cluster's kubeconfig");
+    Config::from_custom_kubeconfig(
+        Kubeconfig::read_from(&path).unwrap(),
+        &KubeConfigOptions::default(),
+    )
+    .await
+    .unwrap()
+}
+
+/// A client acting as `service_account` in `namespace`.
+fn impersonating(mut config: Config, namespace: &str, service_account: &str) -> Client {
+    config.auth_info.impersonate = Some(format!(
+        "system:serviceaccount:{namespace}:{service_account}"
+    ));
+    Client::try_from(config).unwrap()
+}
+
 impl Cluster {
     async fn connect() -> Self {
-        let path = std::env::var("LEMON8S_KUBECONFIG")
-            .expect("set LEMON8S_KUBECONFIG to the test cluster's kubeconfig");
-        let config = Config::from_custom_kubeconfig(
-            Kubeconfig::read_from(&path).unwrap(),
-            &KubeConfigOptions::default(),
-        )
-        .await
-        .unwrap();
+        let config = test_config().await;
         let config_for_impersonation = config.clone();
         let client = Client::try_from(config).unwrap();
         let crds = Api::<CustomResourceDefinition>::all(client.clone());
@@ -660,12 +677,8 @@ async fn conditions(cluster: &Cluster, name: &str) -> Vec<(String, String, Strin
 async fn control_runs_on_its_rbac_alone_and_writes_every_verdict_into_status() {
     let cluster = Cluster::connect().await;
     let service_account = cluster.apply_rbac().await;
-    let mut as_control = cluster.config.clone();
-    as_control.auth_info.impersonate = Some(format!(
-        "system:serviceaccount:{}:{service_account}",
-        cluster.namespace
-    ));
-    let control_client = Client::try_from(as_control).unwrap();
+    let control_client =
+        impersonating(cluster.config.clone(), &cluster.namespace, &service_account);
     let dir = tempfile::tempdir().unwrap();
     let control = Control::open(&dir.path().join("control.sqlite")).unwrap();
     let _watching = control.watch(control_client.clone(), &cluster.namespace);
@@ -796,5 +809,85 @@ async fn a_namespace_without_the_users_revokes_them_at_once_and_raises_the_alert
     }
 
     wrong.delete_namespace().await;
+    cluster.delete_namespace().await;
+}
+
+#[tokio::test]
+#[ignore = "needs a Kubernetes API server (LEMON8S_KUBECONFIG)"]
+async fn a_failed_status_write_is_logged_without_names() {
+    if let Ok(as_control) = std::env::var(CHILD) {
+        let (namespace, service_account) = as_control.split_once('/').unwrap();
+        let client = impersonating(test_config().await, namespace, service_account);
+        let dir = tempfile::tempdir().unwrap();
+        let control = Control::open(&dir.path().join("control.sqlite")).unwrap();
+        let _watching = control.watch(client, namespace);
+        tokio::time::sleep(SYNC_TIMEOUT).await;
+        return;
+    }
+    let cluster = Cluster::connect().await;
+    let service_account = cluster.apply_rbac().await;
+    let roles = cluster.api::<Role>();
+    let mut no_status = roles.get("lemon8s-control").await.unwrap();
+    no_status.rules.as_mut().unwrap().retain(|r| {
+        !r.resources
+            .iter()
+            .flatten()
+            .any(|resource| resource.ends_with("/status"))
+    });
+    roles
+        .replace("lemon8s-control", &PostParams::default(), &no_status)
+        .await
+        .unwrap();
+    cluster.configure(true).await;
+
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "a_failed_status_write_is_logged_without_names",
+            "--include-ignored",
+            "--nocapture",
+        ])
+        .env(CHILD, format!("{}/{service_account}", cluster.namespace))
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stderr = child.stderr.take().unwrap();
+    let log = tokio::task::spawn_blocking(move || {
+        let mut log = Vec::new();
+        for line in BufReader::new(stderr).lines() {
+            let line = line.unwrap();
+            let done = line.contains("User objects failed");
+            log.push(line);
+            if done {
+                break;
+            }
+        }
+        log
+    })
+    .await
+    .unwrap();
+    child.kill().unwrap();
+    child.wait().unwrap();
+
+    let failed = log.iter().find(|l| l.contains("User objects failed"));
+    assert_eq!(
+        failed.map(String::as_str),
+        Some("control: writing the status of 2 User objects failed: 403 Forbidden"),
+        "{log:?}"
+    );
+    for who in ["alice", "bob"] {
+        assert!(log.iter().all(|l| !l.contains(who)), "{log:?}");
+    }
+
+    let cluster_name = format!("lemon8s-control-{}", cluster.namespace);
+    Api::<ClusterRoleBinding>::all(cluster.client.clone())
+        .delete(&cluster_name, &DeleteParams::default())
+        .await
+        .unwrap();
+    Api::<ClusterRole>::all(cluster.client.clone())
+        .delete(&cluster_name, &DeleteParams::default())
+        .await
+        .unwrap();
     cluster.delete_namespace().await;
 }

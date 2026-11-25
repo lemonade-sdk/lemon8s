@@ -73,6 +73,14 @@ async fn mirror<K>(
                     changed.notify_one();
                 }
                 Some(Err(watcher::Error::WatchError(e))) if e.code == 410 => {}
+                Some(Err(
+                    watcher::Error::InitialListFailed(e)
+                    | watcher::Error::WatchStartFailed(e)
+                    | watcher::Error::WatchFailed(e),
+                )) => break api_failure(&e),
+                Some(Err(watcher::Error::WatchError(e))) => {
+                    break format!("{} {}", e.code, e.reason);
+                }
                 Some(Err(e)) => break e.to_string(),
                 None => break "the watch ended".to_owned(),
             }
@@ -90,6 +98,16 @@ async fn mirror<K>(
     }
 }
 
+/// A failed call to the API server, without its message, which can name a person: the object
+/// the call was about, or the user it ran as.
+fn api_failure(error: &kube::Error) -> String {
+    match error {
+        kube::Error::Api(status) => format!("{} {}", status.code, status.reason),
+        kube::Error::SerdeError(e) => format!("a response didn't parse ({:?})", e.classify()),
+        other => other.to_string(),
+    }
+}
+
 /// One condition as control means it; `last_transition_time` is filled in when written.
 struct Wanted {
     kind: &'static str,
@@ -100,7 +118,7 @@ struct Wanted {
 
 /// Writes `wanted` into the object's status conditions with a server-side apply, unless they
 /// already say exactly that (so writing a status doesn't wake the watch into another write).
-async fn write_conditions<K>(api: &Api<K>, object: &K, wanted: Vec<Wanted>)
+async fn write_conditions<K>(api: &Api<K>, object: &K, wanted: Vec<Wanted>) -> Result<(), String>
 where
     K: Resource<DynamicType = ()>
         + HasStatus<Status = ResourceStatus>
@@ -129,27 +147,21 @@ where
         })
         .collect();
     if conditions.as_slice() == held {
-        return;
+        return Ok(());
     }
     let patch = json!({
         "apiVersion": K::api_version(&()),
         "kind": K::kind(&()),
         "status": {"conditions": conditions},
     });
-    if let Err(e) = api
-        .patch_status(
-            &object.name_any(),
-            &PatchParams::apply(FIELD_MANAGER).force(),
-            &Patch::Apply(patch),
-        )
-        .await
-    {
-        eprintln!(
-            "control: writing the status of {} {}: {e}",
-            K::kind(&()),
-            object.name_any()
-        );
-    }
+    api.patch_status(
+        &object.name_any(),
+        &PatchParams::apply(FIELD_MANAGER).force(),
+        &Patch::Apply(patch),
+    )
+    .await
+    .map(drop)
+    .map_err(|e| api_failure(&e))
 }
 
 /// The `Accepted` condition for an object of `kind` named `name`.
@@ -174,22 +186,28 @@ fn accepted(reconciled: &Reconciled, kind: &str, name: &str, applied: &str) -> W
     }
 }
 
-/// Every object's verdict into its status subresource, so `kubectl get -o yaml` shows it.
+/// Every object's verdict into its status subresource, so `kubectl get -o yaml` shows it. Failures
+/// are logged by kind and count, since a `User`'s name is a person's.
 async fn write_statuses(
     client: &Client,
     namespace: &str,
     desired: &Desired,
     reconciled: &Reconciled,
 ) {
+    let mut failed: BTreeMap<(&str, String), usize> = BTreeMap::new();
     let users = Api::<User>::namespaced(client.clone(), namespace);
     for user in &desired.users {
         let wanted = vec![accepted(reconciled, "User", &user.name_any(), "Applied")];
-        write_conditions(&users, user, wanted).await;
+        if let Err(why) = write_conditions(&users, user, wanted).await {
+            *failed.entry(("User", why)).or_default() += 1;
+        }
     }
     let models = Api::<Model>::namespaced(client.clone(), namespace);
     for model in &desired.models {
         let wanted = vec![accepted(reconciled, "Model", &model.name_any(), "Applied")];
-        write_conditions(&models, model, wanted).await;
+        if let Err(why) = write_conditions(&models, model, wanted).await {
+            *failed.entry(("Model", why)).or_default() += 1;
+        }
     }
     let deployments = Api::<ModelDeployment>::namespaced(client.clone(), namespace);
     for deployment in &desired.deployments {
@@ -208,7 +226,12 @@ async fn write_statuses(
                 message: String::new(),
             },
         ];
-        write_conditions(&deployments, deployment, wanted).await;
+        if let Err(why) = write_conditions(&deployments, deployment, wanted).await {
+            *failed.entry(("ModelDeployment", why)).or_default() += 1;
+        }
+    }
+    for ((kind, why), count) in failed {
+        eprintln!("control: writing the status of {count} {kind} objects failed: {why}");
     }
 }
 
@@ -349,17 +372,20 @@ impl Control {
                         verdicts.send_replace(Some((desired, reconciled)));
                     }
                     Ok(Err(error)) => eprintln!("control: reconcile refused: {:?}", error.code),
-                    Err(e) => {
-                        eprintln!("control: reconcile failed: {e}");
-                        if e.is_panic() {
-                            control.poison();
-                        }
+                    Err(e) if e.is_panic() => {
+                        eprintln!(
+                            "control: reconcile panicked, refusing every call until a restart"
+                        );
+                        control.poison();
                     }
+                    Err(_) => eprintln!("control: reconcile was cancelled"),
                 }
                 tokio::select! {
                     () = changed.notified() => {}
                     stopped = mirrors.join_next() => {
-                        eprintln!("control: a watch or the status writer stopped: {stopped:?}");
+                        let panicked = matches!(stopped, Some(Err(e)) if e.is_panic());
+                        let how = if panicked { "panicked" } else { "stopped" };
+                        eprintln!("control: a watch or the status writer {how}");
                         return;
                     }
                 }

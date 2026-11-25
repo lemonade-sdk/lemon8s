@@ -11,6 +11,8 @@ use control::{CheckKey, Control, CreateSession, Desired, ErrorCode, Name, ReadSt
 use policy::Denial;
 
 const MINUTE: Duration = Duration::from_mins(1);
+/// Set in the copy of this test binary a test runs to read its log.
+const CHILD: &str = "LEMON8S_TEST_CHILD";
 
 const TEAM_OF_TEN: [&str; 10] = [
     "alice", "bob", "carol", "dave", "erin", "frank", "grace", "heidi", "ivan", "judy",
@@ -257,4 +259,31 @@ async fn users_created_already_revoked_never_had_access_and_never_count() {
         .await
         .unwrap_err();
     assert_eq!(refused.denial, Some(Denial::UserRevoked));
+}
+
+#[tokio::test]
+async fn the_alert_names_no_one() {
+    if std::env::var_os(CHILD).is_some() {
+        let sys = System::with(&["carol"]).await;
+        sys.control
+            .reconcile(&config(&[], &[]), sys.t0 + MINUTE)
+            .unwrap();
+        return;
+    }
+
+    let run = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "the_alert_names_no_one", "--nocapture"])
+        .env(CHILD, "1")
+        .output()
+        .unwrap();
+
+    assert!(run.status.success(), "{run:?}");
+    let log = String::from_utf8(run.stderr).unwrap();
+    assert!(
+        log.contains("control: revoked 3 users within 10 minutes"),
+        "{log}"
+    );
+    for who in ["alice", "bob", "carol"] {
+        assert!(!log.contains(who), "{log}");
+    }
 }
