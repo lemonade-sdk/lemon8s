@@ -28,7 +28,7 @@ case "$flavor" in
       aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d "$bin/kind"
     chmod +x "$bin/kind"
     kind create cluster --name lemon8s --wait 5m --retain \
-      --image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+      --image kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
     ;;
   k0s)
     docker run -d --name k0s --hostname k0s -v /var/lib/k0s -v /var/log/pods --tmpfs /run --privileged \
@@ -82,6 +82,10 @@ case "$flavor" in
 esac
 
 timeout 300 bash -c 'until kubectl get nodes | grep -q " Ready"; do sleep 2; done' || { kubectl get nodes -o wide; exit 1; }
+{
+  timeout 300 bash -c 'until kubectl -n kube-system get pods -l k8s-app=kube-dns -o name | grep -q .; do sleep 2; done' &&
+    kubectl -n kube-system wait --for=condition=Ready pod -l k8s-app=kube-dns --timeout=5m
+} || { echo "cluster DNS isn't ready" >&2; kubectl -n kube-system get pods -o wide; exit 1; }
 
 # k0s, RKE2, and kubeadm ship no default storage class; Rancher's local-path provisioner is the one K3s bundles.
 if [ "$flavor" = k0s ] || [ "$flavor" = rke2 ] || [ "$flavor" = kubeadm ]; then

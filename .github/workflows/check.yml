@@ -19,6 +19,7 @@ env:
   HELM_VERSION: v4.3.2
   K3S_VERSION: v1.37.2+k3s1
   K3S_INSTALL_SHA256: ed01f89fd977bf20ac1516bbebf8370bf3ddbaa55dac8aba610956a4c78cc00b
+  MODEL: Qwen3-0.6B-GGUF
   RUFF_VERSION: 0.17.6
 
 defaults:
@@ -63,7 +64,6 @@ jobs:
 
       - name: Chart
         run: |
-          kubernetes=${K3S_VERSION%%+*}
           every=deploy/chart/lemon8s/tests/all-values.yaml
           helm lint --strict deploy/chart/lemon8s --set "deviceGroups={992}"
           helm lint --strict deploy/chart/lemon8s -f "$every"
@@ -71,7 +71,11 @@ jobs:
             helm template lemonade deploy/chart/lemon8s --set "deviceGroups={992}"
             echo ---
             helm template lemonade deploy/chart/lemon8s -f "$every"
-          } | docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary -kubernetes-version "${kubernetes#v}" -
+          } > "$RUNNER_TEMP/chart.yaml"
+          for kubernetes in 1.35.0 1.36.0 "${K3S_VERSION%%+*}"; do
+            docker run --rm -i ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e \
+              -strict -summary -kubernetes-version "${kubernetes#v}" - < "$RUNNER_TEMP/chart.yaml"
+          done
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/deploy/chart:/apps" \
             docker.io/helmunittest/helm-unittest:4.3.0-1.2.1@sha256:28ea86c3e0b07f501f0c2e9c08b9f41e240f4a4b571cb5106b36cf0f0607e989 lemon8s
 
@@ -104,21 +108,48 @@ jobs:
           python3 -I "$RUNNER_TEMP/check_comment_slop.py" --from-ref "$(git merge-base "origin/$BASE_REF" HEAD)" --to-ref HEAD
 
   e2e-cpu:
-    name: End-to-end on the CPU
+    name: End-to-end on the CPU, after an upgrade
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
 
       - name: K3s
         timeout-minutes: 15
         run: bash .github/scripts/cluster.sh k3s
 
-      - name: Install lemon8s and run the end-to-end tests
+      - name: Base chart
+        run: |
+          mkdir "$RUNNER_TEMP/base"
+          git archive HEAD^ deploy/chart/lemon8s | tar -x -C "$RUNNER_TEMP/base"
+
+      - name: Install the base chart, upgrade to this one, and run the end-to-end tests
         uses: ./.github/actions/e2e-cpu
         timeout-minutes: 20
+        with:
+          upgrade-from: ${{ runner.temp }}/base/deploy/chart/lemon8s
+
+      - name: Roll back to the base chart
+        run: |
+          helm -n lemonade rollback lemonade 1
+          kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
+          kubectl -n lemonade exec deploy/lemonade -- lemonade list --downloaded | grep -w "$MODEL"
+          kubectl -n lemonade get secret lemonade-api-key -o jsonpath='{.data}' | sha256sum -c "$RUNNER_TEMP/keys.sha256"
+
+      - name: Upgrade again, uninstall, which keeps the models' volume, and install again
+        run: |
+          helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reset-then-reuse-values
+          kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
+          helm -n lemonade uninstall lemonade --cascade foreground
+          # The Deployment stays until its pods are gone; Helm's own --wait sometimes returns before then (helm/helm#32261).
+          kubectl -n lemonade wait --for=delete deploy/lemonade --timeout=5m
+          kubectl -n lemonade get pvc lemonade-models
+          helm install lemonade deploy/chart/lemon8s --namespace lemonade --set devices=null --set backend=cpu
+          kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
+          kubectl -n lemonade exec deploy/lemonade -- lemonade list --downloaded | grep -w "$MODEL"
 
       - name: Cluster state
         if: ${{ !success() }}

@@ -18,7 +18,7 @@ Planned: each conversation tagged with the kinds of data it may hold, so that on
 
 ## Try it
 
-The chart should run on any Kubernetes with a default storage class. To use a GPU, it needs the GPU vendor's device plugin, and to keep other pods out, a network plugin that enforces NetworkPolicy. Besides K3s, it's tested on the CPU with kind, k0s, minikube, RKE2, and upstream Kubernetes set up by kubeadm, with Cilium. These steps use K3s on Linux with an AMD GPU; for Windows, see [Run it on Windows](docs/playbooks/lemonade-on-kubernetes.md#run-it-on-windows). lemon8s uses port 13308, so a Lemonade already running on the host can keep its 13305. The two then share the GPU's memory, so each has less room for models.
+The chart supports Kubernetes 1.35 to 1.37, and should run on any distribution with a default storage class. To use a GPU, it needs the GPU vendor's device plugin, and to keep other pods out, a network plugin that enforces NetworkPolicy. Besides K3s, it's tested on the CPU with kind, k0s, minikube, RKE2, and upstream Kubernetes set up by kubeadm, with Cilium. CI runs 1.35 on kind and 1.37 everywhere else, and checks the chart against 1.35, 1.36, and 1.37. These steps use K3s on Linux with an AMD GPU; for Windows, see [Run it on Windows](docs/playbooks/lemonade-on-kubernetes.md#run-it-on-windows). lemon8s uses port 13308, so a Lemonade already running on the host can keep its 13305. The two then share the GPU's memory, so each has less room for models.
 
 1. Install K3s without its bundled ingress and load balancer, which lemon8s doesn't use, then [Helm](https://helm.sh/docs/intro/install/) and AMD's GPU device plugin:
 

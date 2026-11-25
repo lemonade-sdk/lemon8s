@@ -1,0 +1,28 @@
+suite: the next steps Helm prints
+templates:
+  - NOTES.txt
+release:
+  name: team-ai
+  namespace: ai
+set:
+  service.port: 13310
+tests:
+  - it: names this release, its namespace, its port, and its Secret
+    asserts:
+      - matchRegexRaw:
+          pattern: "kubectl -n ai rollout status deploy/team-ai\n"
+      - matchRegexRaw:
+          pattern: "kubectl -n ai exec deploy/team-ai -- lemonade load "
+      - matchRegexRaw:
+          pattern: "kubectl -n ai port-forward svc/team-ai 13310 "
+      - matchRegexRaw:
+          pattern: "OPENAI_BASE_URL=http://localhost:13310/v1\n"
+      - matchRegexRaw:
+          pattern: "kubectl -n ai get secret team-ai-api-key -o "
+
+  - it: reads the key from a Secret of your own
+    set:
+      apiKey.existingSecret: team-keys
+    asserts:
+      - matchRegexRaw:
+          pattern: "get secret team-keys -o "
