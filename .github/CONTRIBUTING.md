@@ -47,7 +47,9 @@ python3 -m venv .venv
 
 Install or upgrade with the backend you mean to test, such as `--set backend=vulkan`, and pass the same name to `--backend`. CI runs the end-to-end tests only on the CPU, so a pull request that changes the chart should also state which GPU backends and hardware they passed on. If you have no GPU to test on, say so, and a maintainer will run them.
 
-Dependabot updates the actions, the test requirements, and Lemonade's image. Other pinned versions, such as those at the top of [check.yml](workflows/check.yml), the images, installers, packages, and charts in its jobs and in [cluster.sh](scripts/cluster.sh), Python in the [end-to-end action](actions/e2e-cpu/action.yml), the README's K3s and device plugin, and the oldest supported Kubernetes, 1.35, in kind and in the chart's schema check, are updated by hand, along with the checksum or digest beside each.
+Dependabot updates the actions, the test requirements, and Lemonade's image. Other pinned versions, such as those at the top of [check.yml](workflows/check.yml) and [release.yml](workflows/release.yml), the images, installers, packages, and charts in its jobs and in [cluster.sh](scripts/cluster.sh), Python in the [end-to-end action](actions/e2e-cpu/action.yml), the README's K3s and device plugin, and the oldest supported Kubernetes, 1.35, in kind and in the chart's schema check, are updated by hand, along with the checksum or digest beside each.
+
+Admins release from the browser, as [RELEASING.md](RELEASING.md) describes. A pull request that changes the release workflows, Chart.yaml, the README, or the playbook also runs a dry run of the release, which pushes nothing.
 
 ## AI tools
 

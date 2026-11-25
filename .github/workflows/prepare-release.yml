@@ -1,0 +1,92 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The next version, such as 0.1.1-alpha for fixes or 0.2.0-alpha for a breaking change
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - .github/workflows/prepare-release.yml
+      - .github/scripts/release-version.sh
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  bump:
+    name: Set the version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set the version in the chart and the install commands
+        id: bump
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Run Prepare release on main"
+            exit 1
+          fi
+          if [ -z "$VERSION" ]; then
+            # A pull request's dry run has no input, so it takes the next patch.
+            IFS=.- read -r major minor patch _ < <(sed -n 's/^version: //p' deploy/chart/lemon8s/Chart.yaml)
+            VERSION=$major.$minor.$((patch + 1))-alpha
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::v$VERSION is already released"
+            exit 1
+          fi
+          bash .github/scripts/release-version.sh "$VERSION"
+          git diff | tee "$RUNNER_TEMP/release.patch"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-patch
+          path: ${{ runner.temp }}/release.patch
+          retention-days: 1
+
+  branch:
+    name: Push the release branch
+    needs: bump
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'lemonade-sdk/lemon8s'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-patch
+          path: ${{ runner.temp }}
+
+      - name: Commit the version and push release/${{ needs.bump.outputs.version }}
+        env:
+          VERSION: ${{ needs.bump.outputs.version }}
+        run: |
+          git apply --index "$RUNNER_TEMP/release.patch"
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "Release $VERSION"
+          git push origin "HEAD:refs/heads/release/$VERSION"
+          echo "Open the pull request: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...release/$VERSION?expand=1" |
+            tee -a "$GITHUB_STEP_SUMMARY"

@@ -1,5 +1,9 @@
 apiVersion: v2
 name: lemon8s
-description: Lemonade's server on Kubernetes, on one host
+description: "Alpha: Lemonade's server on Kubernetes, on one host"
 type: application
-version: 0.1.0
+version: 0.1.0-alpha
+sources:
+  - https://github.com/lemonade-sdk/lemon8s
+annotations:
+  lemon8s.io/maturity: alpha

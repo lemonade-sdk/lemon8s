@@ -1,0 +1,203 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - deploy/chart/lemon8s/Chart.yaml
+  release:
+    types: [published]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/scripts/release-version.sh
+      - deploy/chart/lemon8s/Chart.yaml
+      - README.md
+      - docs/playbooks/lemonade-on-kubernetes.md
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  HELM_VERSION: v4.3.2
+  HELM_SHA256: d1c0278d46beab79582d7e50f5b3dc206944ba8e577cde618513fd07daa53983
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  package:
+    name: Package and check the chart
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      epoch: ${{ steps.package.outputs.epoch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - &helm
+        name: Helm
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL -o "$RUNNER_TEMP/helm.tar.gz" "https://get.helm.sh/helm-$HELM_VERSION-linux-amd64.tar.gz"
+          echo "$HELM_SHA256  $RUNNER_TEMP/helm.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/helm.tar.gz" -C "$RUNNER_TEMP/bin" --strip-components=1 linux-amd64/helm
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Check the version and the alpha marks, and package the chart
+        id: package
+        run: |
+          version=$(bash .github/scripts/release-version.sh)
+          # The commit's time, not the checkout's, so that a rebuild at the tag matches the draft's archive byte for byte.
+          epoch=$(git log -1 --format=%ct)
+          SOURCE_DATE_EPOCH=$epoch helm package deploy/chart/lemon8s -d "$RUNNER_TEMP/chart"
+          helm show chart "$RUNNER_TEMP/chart/lemon8s-$version.tgz"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "epoch=$epoch" >> "$GITHUB_OUTPUT"
+
+      - name: Write the notes' alpha warning
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          cat > "$RUNNER_TEMP/chart/notes.md" <<EOF
+          > [!WARNING]
+          > **Alpha.** lemon8s is an experimental prototype. Expect breaking changes, and don't rely on it.
+
+          Helm installs an alpha only by its exact version, so install this one with \`--version $VERSION\`, as the README's [Try it](https://github.com/lemonade-sdk/lemon8s/blob/v$VERSION/README.md#try-it) steps do. [Verify it](https://github.com/lemonade-sdk/lemon8s/blob/v$VERSION/.github/RELEASING.md#verify-a-release) first:
+
+          \`\`\`bash
+          gh attestation verify oci://ghcr.io/lemonade-sdk/charts/lemon8s:$VERSION --repo lemonade-sdk/lemon8s \\
+            --signer-workflow lemonade-sdk/lemon8s/.github/workflows/release.yml --source-ref refs/tags/v$VERSION
+          \`\`\`
+          EOF
+          cat "$RUNNER_TEMP/chart/notes.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check the published release against this tag's chart
+        if: github.event_name == 'release'
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::The tag $TAG doesn't match the chart's version, $VERSION"
+            exit 1
+          fi
+          case $(gh api "repos/$GH_REPO/compare/$GITHUB_SHA...main" --jq .status) in
+            identical | ahead) ;;
+            *)
+              echo "::error::$TAG isn't on main"
+              exit 1
+              ;;
+          esac
+          if ! gh release view "$TAG" --json isPrerelease,body,assets \
+            --jq '.isPrerelease and (.body | startswith("> [!WARNING]")) and (.assets | length == 1)' | grep -qx true; then
+            echo "::error::$TAG must stay a pre-release with its alpha warning first and only lemon8s-$VERSION.tgz attached; fix the release, then re-run this job"
+            exit 1
+          fi
+          gh release download "$TAG" --pattern "lemon8s-$VERSION.tgz" --dir "$RUNNER_TEMP/released"
+          if ! cmp "$RUNNER_TEMP/released/lemon8s-$VERSION.tgz" "$RUNNER_TEMP/chart/lemon8s-$VERSION.tgz"; then
+            echo "::error::The release's lemon8s-$VERSION.tgz isn't the chart packaged from $TAG"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chart
+          path: ${{ runner.temp }}/chart/
+
+  draft:
+    name: Draft the release
+    needs: package
+    if: github.event_name == 'push' && github.repository == 'lemonade-sdk/lemon8s'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: release-draft
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: chart
+          path: ${{ runner.temp }}/chart
+
+      - name: Draft a pre-release of this commit, with the chart and generated notes
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.package.outputs.version }}
+        run: |
+          case $(gh release view "v$VERSION" --json isDraft --jq .isDraft 2>/dev/null) in
+            false)
+              echo "v$VERSION is already published."
+              exit 0
+              ;;
+            true)
+              echo "::error::v$VERSION already has a draft; delete the draft and re-run this job"
+              exit 1
+              ;;
+          esac
+          previous=$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[].tagName')
+          gh release create "v$VERSION" "$RUNNER_TEMP/chart/lemon8s-$VERSION.tgz" --draft --prerelease \
+            --target "$GITHUB_SHA" --title "lemon8s $VERSION" --notes-file "$RUNNER_TEMP/chart/notes.md" \
+            --generate-notes ${previous:+--notes-start-tag "$previous"}
+
+  publish:
+    name: Push the chart to ghcr.io and attest it
+    needs: package
+    if: github.event_name == 'release' && github.repository == 'lemonade-sdk/lemon8s'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      attestations: write
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: chart
+          path: ${{ runner.temp }}/chart
+
+      - *helm
+
+      - name: Push the chart
+        id: push
+        env:
+          EPOCH: ${{ needs.package.outputs.epoch }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.package.outputs.version }}
+        run: |
+          chart=$RUNNER_TEMP/chart/lemon8s-$VERSION.tgz
+          # helm push records the archive's modification time, so a re-run pushes the same manifest.
+          touch -d "@$EPOCH" "$chart"
+          helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<< "$GH_TOKEN"
+          helm push "$chart" oci://ghcr.io/lemonade-sdk/charts 2>&1 | tee "$RUNNER_TEMP/push.log"
+          digest=$(sed -n 's/^Digest: //p' "$RUNNER_TEMP/push.log")
+          if [[ $digest != sha256:* ]]; then
+            echo "::error::helm push printed no sha256 digest"
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Attest the chart's archive
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/chart/lemon8s-${{ needs.package.outputs.version }}.tgz
+
+      - name: Attest the chart on ghcr.io
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/lemonade-sdk/charts/lemon8s
+          subject-digest: ${{ steps.push.outputs.digest }}

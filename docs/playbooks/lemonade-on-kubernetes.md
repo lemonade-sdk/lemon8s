@@ -35,17 +35,19 @@ On Windows, lemon8s runs on the CPU in [Rancher Desktop](https://rancherdesktop.
 2. In Git Bash, which comes with Git for Windows, follow the README's steps 2 and 3, but install lemon8s with no devices and Lemonade's CPU backend:
 
    ```bash
-   helm install lemonade deploy/chart/lemon8s --namespace lemonade --set devices=null --set backend=cpu
+   helm install lemonade oci://ghcr.io/lemonade-sdk/charts/lemon8s --version 0.1.0-alpha --namespace lemonade \
+     --set devices=null --set backend=cpu
    ```
 
 The GPU, which WSL2 offers only as `/dev/dxg`, doesn't work there yet, and WSL2 doesn't offer the NPU.
 
 ## Change a setting
 
-[values.yaml](../../deploy/chart/lemon8s/values.yaml) lists the settings. Change one with an upgrade, which keeps your other settings and takes the chart's new defaults, then start the port-forward again, because it follows one pod and the pod restarts:
+[values.yaml](../../deploy/chart/lemon8s/values.yaml) lists the settings. Change one with an upgrade, which keeps your other settings, then start the port-forward again, because it follows one pod and the pod restarts. Name the version you installed, which `helm -n lemonade list` shows in its chart column:
 
 ```bash
-helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reset-then-reuse-values --set backend=rocm
+helm -n lemonade upgrade lemonade oci://ghcr.io/lemonade-sdk/charts/lemon8s --version 0.1.0-alpha \
+  --reset-then-reuse-values --set backend=rocm
 ```
 
 Other settings work the same way:
@@ -69,11 +71,11 @@ ssh -N -L 13308:localhost:13308 <you>@<host>
 
 ## Issue new keys
 
-Apps use the `api-key` in the `lemonade-api-key` Secret. The `admin-api-key` beside it can also change Lemonade's settings, so keep it to yourself; `kubectl -n lemonade exec deploy/lemonade -- lemonade ...` uses it from inside the pod. To replace both keys:
+Apps use the `api-key` in the `lemonade-api-key` Secret. The `admin-api-key` beside it can also change Lemonade's settings, so keep it to yourself; `kubectl -n lemonade exec deploy/lemonade -- lemonade ...` uses it from inside the pod. To replace both keys, naming the version you installed:
 
 ```bash
 kubectl -n lemonade delete secret lemonade-api-key
-helm -n lemonade upgrade lemonade deploy/chart/lemon8s --reset-then-reuse-values
+helm -n lemonade upgrade lemonade oci://ghcr.io/lemonade-sdk/charts/lemon8s --version 0.1.0-alpha --reset-then-reuse-values
 kubectl -n lemonade rollout restart deploy/lemonade
 ```
 

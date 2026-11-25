@@ -31,13 +31,12 @@ The chart supports Kubernetes 1.35 to 1.37, and should run on any distribution w
      --namespace kube-system --set dp.image.tag=1.31.0.9@sha256:26212c665aab415019cfca7a7f1a5c495a306c1e1e03c88f67dfcfda8e81b6e5
    ```
 
-2. Install lemon8s, letting its pod open the GPU through the host's render group, and wait for it:
+2. Install lemon8s, letting its pod open the GPU through the host's render group, and wait for it. Every release is an alpha, which Helm installs only by its exact version:
 
    ```bash
-   git clone https://github.com/lemonade-sdk/lemon8s && cd lemon8s
    kubectl create namespace lemonade
    kubectl label namespace lemonade pod-security.kubernetes.io/enforce=restricted
-   helm install lemonade deploy/chart/lemon8s --namespace lemonade \
+   helm install lemonade oci://ghcr.io/lemonade-sdk/charts/lemon8s --version 0.1.0-alpha --namespace lemonade \
      --set "deviceGroups={$(getent group render | cut -d: -f3)}"
    kubectl -n lemonade rollout status deploy/lemonade --timeout=15m
    ```
