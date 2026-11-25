@@ -1,0 +1,124 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "automountServiceAccountToken": true,
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "lemon8s-control",
+        "namespace": "lemonade"
+      }
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "name": "lemon8s-control",
+        "namespace": "lemonade"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            "lemon8s.io"
+          ],
+          "resources": [
+            "users",
+            "modeldeployments",
+            "models"
+          ],
+          "verbs": [
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "apiGroups": [
+            "lemon8s.io"
+          ],
+          "resources": [
+            "users/status",
+            "modeldeployments/status",
+            "models/status"
+          ],
+          "verbs": [
+            "patch"
+          ]
+        },
+        {
+          "apiGroups": [
+            "discovery.k8s.io"
+          ],
+          "resources": [
+            "endpointslices"
+          ],
+          "verbs": [
+            "list",
+            "watch"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "name": "lemon8s-control",
+        "namespace": "lemonade"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "Role",
+        "name": "lemon8s-control"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "lemon8s-control",
+          "namespace": "lemonade"
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "lemon8s-control-lemonade"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "nodes"
+          ],
+          "verbs": [
+            "list",
+            "watch"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "lemon8s-control-lemonade"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "lemon8s-control-lemonade"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "lemon8s-control",
+          "namespace": "lemonade"
+        }
+      ]
+    }
+  ],
+  "kind": "List"
+}
