@@ -6,7 +6,7 @@ Everyone taking part must follow the [Code of Conduct](CODE_OF_CONDUCT.md). Repo
 
 ## Issues and pull requests
 
-Ask questions and share ideas in an issue or on [Lemonade's Discord](https://discord.gg/5xXzkMu8Zk). Small fixes can go straight to a pull request. Anything bigger, such as a new component or dependency, starts with an issue, so the approach is agreed before you write the code.
+Ask questions and share ideas in an issue or on [Lemonade's Discord](https://discord.gg/5xXzkMu8Zk). Small fixes can go straight to a pull request. Anything bigger, such as a new component or dependency, starts with an issue, so the approach is agreed before you write the code. [The design](../docs/design/foundation.md) sets out what's planned, and in what order.
 
 ## How we build lemon8s
 
