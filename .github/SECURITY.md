@@ -1,6 +1,6 @@
 # Security policy
 
-lemon8s aims to keep each conversation private to the people, agents, and hosts allowed to see it, so any way around that is a vulnerability, and we want to hear about it.
+lemon8s aims to keep each conversation private to the people, agents, and hosts allowed to see it. Today it protects what the playbook's [How safe is it?](../docs/playbooks/lemonade-on-kubernetes.md#questions) describes, and any way around that is a vulnerability we want to hear about.
 
 ## Report a vulnerability
 
@@ -10,7 +10,7 @@ On this repository's **Security** tab, choose **Report a vulnerability**. This o
 
 Include what you can:
 
-- the commit you tested (`git rev-parse HEAD`)
+- the release or commit you tested
 - your hardware
 - what an attacker gains
 - steps to reproduce, or a minimal proof of concept
@@ -20,9 +20,9 @@ We'll acknowledge your report as soon as we can and keep you updated while we fi
 
 ## Supported versions
 
-lemon8s is a prototype and has no releases yet. Only the `main` branch is supported: fixes land there, and earlier commits aren't patched.
+lemon8s is a prototype, and every release is an alpha, published on [GitHub Releases](https://github.com/lemonade-sdk/lemon8s/releases) and as a Helm chart on ghcr.io. Only the latest release is supported: fixes land on `main` and ship in the next release, and earlier releases aren't patched. Before installing a release, [verify it](RELEASING.md#verify-a-release).
 
 ## Out of scope
 
-- **Upstream components lemon8s runs unmodified**, such as K3s, llama.cpp, and Lemonade: report those to their projects. If lemon8s's configuration of a component is what makes it exploitable, report it here.
+- **Upstream components lemon8s uses unmodified**, such as K3s, llama.cpp, and Lemonade: report those to their projects. If lemon8s's configuration of a component is what makes it exploitable, report it here.
 - **AMD hardware, drivers, and firmware:** report through [AMD Product Security](https://www.amd.com/en/resources/product-security.html).
