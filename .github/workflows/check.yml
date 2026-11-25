@@ -86,6 +86,68 @@ jobs:
           docker run --rm -v "$PWD:/repo" -w /repo --entrypoint shellcheck \
             docker.io/rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 .github/scripts/*.sh
 
+  rust:
+    name: Rust
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CARGO_INCREMENTAL: 0
+    defaults:
+      run:
+        working-directory: crates
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            crates/target/
+          key: rust-${{ hashFiles('crates/rust-toolchain.toml', 'crates/Cargo.lock') }}
+
+      - name: Toolchain, cargo-deny, and cargo-about
+        run: |
+          rustup toolchain install
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL -o "$RUNNER_TEMP/cargo-deny.tar.gz" \
+            https://github.com/EmbarkStudios/cargo-deny/releases/download/0.22.1/cargo-deny-0.22.1-x86_64-unknown-linux-musl.tar.gz
+          echo "13f7e825e9cb811c2f8de63f29b0f45851dfb53004029f0f2501af524728364d  $RUNNER_TEMP/cargo-deny.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/cargo-deny.tar.gz" -C "$RUNNER_TEMP/bin" --strip-components=1 \
+            cargo-deny-0.22.1-x86_64-unknown-linux-musl/cargo-deny
+          curl -fsSL -o "$RUNNER_TEMP/cargo-about.tar.gz" \
+            https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.3/cargo-about-0.9.3-x86_64-unknown-linux-musl.tar.gz
+          echo "3ad1e94ea1e63d69d1961f4fb15ccbbe9575d906111f96d2cb4dce6df48f71b4  $RUNNER_TEMP/cargo-about.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/cargo-about.tar.gz" -C "$RUNNER_TEMP/bin" --strip-components=1 \
+            cargo-about-0.9.3-x86_64-unknown-linux-musl/cargo-about
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Lints
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace --locked
+
+      - name: Kind
+        timeout-minutes: 10
+        run: bash ../.github/scripts/cluster.sh kind
+
+      - name: Control against the API server
+        run: LEMON8S_KUBECONFIG=$KUBECONFIG cargo test --workspace --locked --test kube -- --ignored
+
+      - name: Licenses, advisories, and sources
+        run: cargo deny --log-level error check --show-stats
+
+      - name: Notices
+        run: |
+          cargo about init
+          cargo about generate --fail --locked -o "$RUNNER_TEMP/NOTICES.html" about.hbs
+
   comment-slop:
     name: Comment check
     if: github.event_name == 'pull_request'
@@ -236,7 +298,7 @@ jobs:
   checks:
     name: Checks
     if: always()
-    needs: [lint, comment-slop, e2e-cpu, e2e-windows, e2e-flavors]
+    needs: [lint, rust, comment-slop, e2e-cpu, e2e-windows, e2e-flavors]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

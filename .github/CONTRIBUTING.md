@@ -23,7 +23,7 @@ Before you ask for review, check your change the way reviewers will:
 
 ## Tests
 
-Every pull request runs [the checks](workflows/check.yml): spelling, Markdown, and links; Python lint and format; the chart's lint, schema, and [unit tests](../deploy/chart/lemon8s/tests); the workflows themselves; Lemonade's [comment check](https://github.com/lemonade-sdk/lemonade/blob/main/tools/check_comment_slop.py) on the lines a pull request changes; and the end-to-end tests below, on the CPU, on Linux in K3s, kind, k0s, minikube, RKE2, and kubeadm, each started on a GitHub runner by [cluster.sh](scripts/cluster.sh), and on Windows in [Rancher Desktop](https://rancherdesktop.io), along with a check that Lemonade's NetworkPolicy keeps other pods out. A pull request can merge once the **Checks** job passes, which needs all of these. On your first pull request, the checks start once a maintainer approves them.
+Every pull request runs [the checks](workflows/check.yml): spelling, Markdown, and links; Python lint and format; the chart's lint, schema, and [unit tests](../deploy/chart/lemon8s/tests); the Rust crates' format, lints, and tests, control's also against a kind cluster, and their licenses, advisories, and notices; the workflows themselves; Lemonade's [comment check](https://github.com/lemonade-sdk/lemonade/blob/main/tools/check_comment_slop.py) on the lines a pull request changes; and the end-to-end tests below, on the CPU, on Linux in K3s, kind, k0s, minikube, RKE2, and kubeadm, each started on a GitHub runner by [cluster.sh](scripts/cluster.sh), and on Windows in [Rancher Desktop](https://rancherdesktop.io), along with a check that Lemonade's NetworkPolicy keeps other pods out. A pull request can merge once the **Checks** job passes, which needs all of these. On your first pull request, the checks start once a maintainer approves them.
 
 In K3s, the end-to-end tests run after an upgrade: the job installs the base branch's chart, downloads a model, and upgrades to the pull request's chart with the [playbook's](../docs/playbooks/lemonade-on-kubernetes.md#change-a-setting) command. After the tests, it rolls back, upgrades again, uninstalls, and installs again, checking that the model stays on its volume throughout and the keys stay the same until the uninstall. So a chart change must keep what an install of `main`'s chart relies on: the values `main` accepts, the selector labels, the PersistentVolumeClaim's name, and the Secret's name and keys. A change that has to break one of these starts with an issue. To try an upgrade yourself, in a test cluster with the namespace from the README's step 2:
 
@@ -45,9 +45,24 @@ python3 -m venv .venv
 .venv/bin/pytest tests --backend vulkan
 ```
 
+The Rust crates in [`crates`](../crates) build with the toolchain that [rust-toolchain.toml](../crates/rust-toolchain.toml) pins. To check them with nothing installed and nothing written to your home directory, run them in Rust's image, with its caches in `/tmp/lemon8s-cargo`, and run control's API-server tests against a throwaway [kind](https://kind.sigs.k8s.io) cluster:
+
+```bash
+mkdir -p /tmp/lemon8s-cargo
+rust() {
+  docker run --rm --network host --user "$(id -u):$(id -g)" -v /tmp/lemon8s-cargo:/cache -v "$PWD:/repo" -w /repo/crates \
+    -e CARGO_HOME=/cache/cargo -e RUSTUP_HOME=/cache/rustup -e CARGO_TARGET_DIR=/cache/target -e LEMON8S_KUBECONFIG=/cache/kubeconfig \
+    docker.io/library/rust:1.100.0-slim-trixie@sha256:6f14b2b4b278ec0d50aa1d69541c304ce0f95e0f6268487aa9924af1c2e9aebe "$@"
+}
+rust sh -c 'cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test'
+kind create cluster --name lemon8s-test --kubeconfig /tmp/lemon8s-cargo/kubeconfig
+rust cargo test --test kube -- --ignored
+kind delete cluster --name lemon8s-test --kubeconfig /tmp/lemon8s-cargo/kubeconfig
+```
+
 Install or upgrade with the backend you mean to test, such as `--set backend=vulkan`, and pass the same name to `--backend`. CI runs the end-to-end tests only on the CPU, so a pull request that changes the chart should also state which GPU backends and hardware they passed on. If you have no GPU to test on, say so, and a maintainer will run them.
 
-Dependabot updates the actions, the test requirements, and Lemonade's image. Other pinned versions, such as those at the top of [check.yml](workflows/check.yml), the images, installers, packages, and charts in its jobs and in [cluster.sh](scripts/cluster.sh), Python in the [end-to-end action](actions/e2e-cpu/action.yml), the README's K3s and device plugin, and the oldest supported Kubernetes, 1.35, in kind and in the chart's schema check, are updated by hand, along with the checksum or digest beside each.
+Dependabot updates the actions, the test requirements, the Rust crates, and Lemonade's image. Other pinned versions, such as those at the top of [check.yml](workflows/check.yml), the images, installers, packages, and charts in its jobs and in [cluster.sh](scripts/cluster.sh), Python in the [end-to-end action](actions/e2e-cpu/action.yml), Rust in rust-toolchain.toml and in the image above, the README's K3s and device plugin, and the oldest supported Kubernetes, 1.35, in kind and in the chart's schema check, are updated by hand, along with the checksum or digest beside each.
 
 ## AI tools
 

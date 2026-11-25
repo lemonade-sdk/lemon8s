@@ -18,6 +18,16 @@ updates:
       test-requirements:
         patterns: ["*"]
 
+  - package-ecosystem: cargo
+    directory: /crates
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      crates:
+        patterns: ["*"]
+
   - package-ecosystem: helm
     directory: /deploy/chart/lemon8s
     schedule:
